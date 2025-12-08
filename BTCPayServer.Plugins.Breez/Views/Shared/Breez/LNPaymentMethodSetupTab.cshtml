@@ -1,0 +1,90 @@
+﻿@model BTCPayServer.Models.StoreViewModels.LightningNodeViewModel
+@inject BreezService BreezService
+@{
+    var storeId = Model.StoreId;
+    if (Model.CryptoCode != "BTC")
+    {
+        return;
+    }
+
+    // Try to get existing Breez client to extract the payment key
+    var breezClient = BreezService.GetClient(Model.StoreId);
+    string paymentKey = "";
+
+    if (breezClient != null)
+    {
+        // Extract payment key from the existing client connection string
+        var connStr = breezClient.ToString();
+        if (connStr.Contains("key="))
+        {
+            var keyStart = connStr.IndexOf("key=") + 4;
+            var keyEnd = connStr.IndexOf(";", keyStart);
+            if (keyEnd == -1) keyEnd = connStr.Length;
+            paymentKey = connStr.Substring(keyStart, keyEnd - keyStart);
+        }
+    }
+}
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+       const customNodeAccordian = document.getElementById("CustomNodeSupport");
+       const template = document.getElementById("breez");
+       customNodeAccordian.appendChild(template.content.cloneNode(true));
+
+       // Auto-fill the connection string when Breez is selected
+       const breezRadio = document.getElementById("LightningNodeType-Breez");
+       const connStringEl = document.getElementById('ConnectionString');
+
+       if (breezRadio && connStringEl) {
+           breezRadio.addEventListener('change', function() {
+               if (this.checked) {
+                   const storeId = '@Model.StoreId';
+                   const paymentKey = '@Html.Raw(paymentKey)';
+                   const connString = `type=breez;key=${paymentKey};storeId=${storeId}`;
+                   connStringEl.value = connString;
+               }
+           });
+       }
+    });
+</script>
+
+<template id="breez">
+    <div class="accordion-item">
+        <h2 class="accordion-header" id="CustomBreezHeader">
+            <button type="button" class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#CustomBreezContent" aria-controls="CustomBreezContent" aria-expanded="false">
+                <span><strong>Breez</strong> non-custodial Lightning wallet</span>
+                <vc:icon symbol="caret-down"/>
+            </button>
+        </h2>
+        <div id="CustomBreezContent" class="accordion-collapse collapse" aria-labelledby="CustomBreezHeader" data-bs-parent="#CustomNodeSupport">
+            <div class="accordion-body">
+                @if (!string.IsNullOrEmpty(paymentKey))
+                {
+                    <div class="alert alert-info">
+                        <strong>Connection string will be auto-filled:</strong>
+                        <br/>
+                        <code>type=breez;key=@paymentKey;storeId=@Model.StoreId</code>
+                    </div>
+                    <p class="my-2">
+                        The connection string above will be automatically filled when you select Breez.
+                        Connects to your <a href="https://breez.technology" target="_blank" rel="noreferrer noopener">Breez</a> mobile wallet.
+                    </p>
+                }
+                else
+                {
+                    <div class="alert alert-warning">
+                        <strong>Breez not configured</strong>
+                        <br/>
+                        Please <a href="/Breez/Index?storeId=@Model.StoreId">configure Breez first</a> to set up your payment key.
+                    </div>
+                    <p class="my-2">Connects to a <a href="https://breez.technology" target="_blank" rel="noreferrer noopener">Breez</a> mobile wallet, using the Breez SDK to handle Lightning payments through swaps.</p>
+                }
+            </div>
+        </div>
+    </div>
+</template>
+
+<div id="BreezSetup" class="pt-3 tab-pane fade" role="tabpanel" aria-labelledby="LightningNodeType-Breez">
+    <p>You can use Breez to accept lightning payments without running a traditional Lightning node.</p>
+    <p>Breez is a mobile-first Lightning Network client that provides a non-custodial solution for Lightning payments.</p>
+</div>

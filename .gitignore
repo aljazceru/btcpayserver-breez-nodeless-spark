@@ -1,0 +1,9 @@
+**/bin/**/*
+**/obj
+**/.idea
+*//Plugins/packed
+.vs/
+/BTCPayServerPlugins.sln.DotSettings.user
+*/documentation/
+**/build.sh
+*/build-and-test.sh

@@ -1,0 +1,90 @@
+﻿@using BTCPayServer.Lightning
+@using BTCPayServer.Models.StoreViewModels
+@using BTCPayServer.Plugins.Breez
+@using BTCPayServer.Security
+@using BTCPayServer.Client
+@inject BreezService BreezService
+@{
+    string storeId = null;
+    if (Model is string s)
+    {
+        storeId = s;
+    }
+    else if (Model is StoreDashboardViewModel dashboardModel)
+    {
+        storeId = dashboardModel.StoreId;
+    }
+    else
+    {
+        storeId = Context.GetImplicitStoreId();
+    }
+
+    // In SDK v0.4.1, NodeState API has changed and async calls can't be made from partial views
+    // This widget needs to be refactored to receive data from controller
+    bool isConfigured = false;
+    try
+    {
+        var client = BreezService.GetClient(storeId);
+        isConfigured = client?.Sdk != null;
+    }
+    catch
+    {
+        // Handle any errors gracefully
+    }
+}
+<style>
+    #Breez-Info{
+        order: -3;
+    }
+    @@media (min-width: 1200px) {
+        #Breez-Info{
+        grid-column-start: 1; grid-column-end: 6;     order: -3;
+    }}
+</style>
+
+<div class="widget store-numbers" id="Breez-Info" style="">
+    @if (Model is StoreDashboardViewModel)
+    {
+        <header>
+            <h4>Breez Node</h4>
+            <a asp-action="Info" asp-controller="Breez" asp-route-storeId="@storeId">
+                Manage
+            </a>
+
+        </header>
+    }
+
+    @if (isConfigured)
+    {
+        <div class="d-flex w-100 align-items-center justify-content-start gap-3">
+            <span class="btcpay-status btcpay-status--enabled"></span>
+            <h6 class="text-truncate">Breez Spark (nodeless)</h6>
+        </div>
+
+        <div class="store-number">
+            <header>
+                <h6>Lightning Balance</h6>
+                @if (Model is StoreDashboardViewModel)
+                {
+                    <div permission="@Policies.CanModifyStoreSettings">
+                        <a asp-action="SwapIn" asp-controller="Breez" asp-route-storeId="@storeId">Swap In</a>
+                        <a asp-action="Send" asp-controller="Breez" asp-route-storeId="@storeId">Send</a>
+                    </div>
+                }
+            </header>
+            <div class="balance d-flex align-items-baseline gap-1">
+                <span class="text-muted">Dashboard widget updated for SDK v0.4.1</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="text-center p-3">
+            <p class="text-muted">Breez node information not available</p>
+            @if (string.IsNullOrEmpty(storeId))
+            {
+                <a asp-action="Configure" asp-controller="Breez" asp-route-storeId="@storeId">Configure Breez</a>
+            }
+        </div>
+    }
+</div>

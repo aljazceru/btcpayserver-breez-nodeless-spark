@@ -1,0 +1,100 @@
+﻿@using System.Numerics
+@using BTCPayServer.Lightning
+@using BTCPayServer.Models.StoreViewModels
+@using BTCPayServer.Plugins.Breez
+@using BTCPayServer.Security
+@inject BreezService BreezService
+
+@{
+    ViewData.SetActivePage("Breez", "Send", "Send");
+    var storeId = Model switch
+    {
+        string s => s,
+        StoreDashboardViewModel dashboardModel => dashboardModel.StoreId,
+        _ => Context.GetImplicitStoreId()
+        };
+    var sdk = BreezService.GetClient(storeId)?.Sdk;
+    if (sdk is null)
+        return;
+
+    var nodeInfo = new Breez.Sdk.Spark.GetInfoRequest(ensureSynced: false);
+    Breez.Sdk.Spark.GetInfoResponse? infoResponse = null;
+    try
+    {
+        infoResponse = await sdk.GetInfo(nodeInfo);
+    }
+    catch (Exception ex)
+    {
+        <div class="alert alert-danger" role="alert">
+            <h5 class="alert-heading">Error</h5>
+            <p class="mb-0">Unable to fetch node information: @ex.Message</p>
+        </div>
+        return;
+    }
+
+    var max = LightMoney.Satoshis((long)(infoResponse?.balanceSats ?? 0)).ToUnit(LightMoneyUnit.Satoshi);
+
+}
+
+
+@if (ViewData["PaymentDetails"] is PaymentDetailsViewModel paymentDetails)
+{
+    <div class="payment-details mb-4">
+        <h4>Payment Details</h4>
+        <div class="row">
+            <div class="col-md-6">
+                <p><strong>Destination:</strong> @paymentDetails.Destination</p>
+                <p><strong>Amount:</strong> @paymentDetails.Amount sats</p>
+            </div>
+            <div class="col-md-6">
+                <p><strong>Fee:</strong> @paymentDetails.Fee sats</p>
+                <p><strong>Total:</strong> @(paymentDetails.Amount + paymentDetails.Fee) sats</p>
+            </div>
+        </div>
+        <form method="post" asp-action="ConfirmSend" asp-route-storeId="@storeId">
+            <input type="hidden" name="paymentRequest" value="@paymentDetails.Destination" />
+            <input type="hidden" name="amount" value="@paymentDetails.Amount" />
+            <input type="hidden" name="prepareResponse" value="@paymentDetails.PrepareResponseJson" />
+            <button type="submit" class="btn btn-success">Confirm and Send</button>
+            <a href="javascript:history.back()" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+}
+else
+{
+    <form method="post" asp-action="PrepareSend" asp-route-storeId="@storeId">
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <h3 class="mb-0">
+                        <span>@ViewData["Title"]</span>
+                    </h3>
+                    <div class="d-flex gap-3 mt-3 mt-sm-0">
+                        <button type="submit" class="btn btn-primary">Prepare Payment</button>
+                    </div>
+                </div>
+                <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                <div class="form-group">
+                    <label for="address" class="form-label" data-required>Bolt11 or Bitcoin Address</label>
+                    <input type="text" id="address" name="address" class="form-control" required placeholder="lnbc... or bc1..."/>
+                    <small class="form-text text-muted">Enter a Lightning bolt11 invoice or a Bitcoin address</small>
+                </div>
+                <div class="form-group">
+                    <label for="amount" class="form-label">Amount (sats)</label>
+                    <input type="number" id="amount" name="amount" min="1" max="@max" class="form-control" placeholder="Amount in satoshis"/>
+                    <small class="form-text text-muted">Maximum payable: @max sats</small>
+                </div>
+            </div>
+        </div>
+    </form>
+}
+
+@functions {
+    public class PaymentDetailsViewModel
+    {
+        public string Destination { get; set; }
+        public long Amount { get; set; }
+        public long Fee { get; set; }
+        public string PrepareResponseJson { get; set; }
+    }
+}

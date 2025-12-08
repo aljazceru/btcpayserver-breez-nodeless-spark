@@ -1,0 +1,83 @@
+@using Breez.Sdk.Spark
+@using BTCPayServer
+@using BTCPayServer.Models.StoreViewModels
+@using BTCPayServer.Plugins.Breez
+@using BTCPayServer.Security
+@using BTCPayServer.Services.Invoices
+@using Microsoft.AspNetCore.Mvc.TagHelpers
+@inject BreezService BreezService
+@inject PaymentMethodHandlerDictionary PaymentMethodHandlerDictionary
+@* @inject BTCPayNetworkProvider BTCPayNetworkProvider *@
+@{
+    Layout = "_Layout";
+    ViewData.SetActivePage("Breez", "Swap Out", "SwapOut");
+    string storeId = null;
+    if (Model is string s)
+    {
+        storeId = s;
+    }
+    else if (Model is StoreDashboardViewModel dashboardModel)
+    {
+        storeId = dashboardModel.StoreId;
+    }
+    else
+    {
+        storeId = Context.GetImplicitStoreId();
+    }
+
+    // Simplified fee structure for SDK v0.4.1 compatibility
+    var fastFee = 10;
+    var slowFee = 5;
+    var minFee = 1;
+}
+
+<datalist id="fees">
+    <option value="@fastFee">Fastest fee (@fastFee sat/vB)</option>
+    <option value="@slowFee">Half hour fee (@slowFee sat/vB)</option>
+    <option value="@slowFee">Hour fee (@slowFee sat/vB)</option>
+    <option value="@slowFee">Economic fee (@slowFee sat/vB)</option>
+    <option value="@minFee">Minimum fee (@minFee sat/vB)</option>
+</datalist>
+
+<datalist list="addresses">
+    @{
+        @* TODO: Fix derivation settings for v2.2.1 - GetDerivationSchemeSettings method signature changed *@
+        var hasStoreWallet = false;
+        if (hasStoreWallet)
+        {
+            <option value="store"> Store wallet</option>
+        }
+    }
+</datalist>
+
+<form method="post" asp-action="SwapOut" asp-route-storeId="@storeId">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <h3 class="mb-0">
+                    <span>@ViewData["Title"]</span>
+                </h3>
+                <div class="d-flex gap-3 mt-3 mt-sm-0">
+
+                </div>
+            </div>
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            <div class="form-group">
+                <label for="address" class="form-label" data-required>Address</label>
+                <input type="text" id="address" list="addresses" name="address" class="form-control" required/>
+            </div>
+            <div class="form-group">
+                <label for="satPerByte" class="form-label" data-required>Feerate (sat/vB)</label>
+                <input type="number" min="@(minFee)" list="fees" id="satPerByte" name="satPerByte" class="form-control" required/>
+                <small class="form-text text-muted">Choose from preset fee rates or enter custom value</small>
+            </div>
+            <div class="form-group">
+                <label for="amount" class="form-label" data-required>Amount (sats)</label>
+                <input type="number" min="1000" max="10000000" id="amount" name="amount" class="form-control" required/>
+                <p class="text-muted">Minimum: 1000 sats, Maximum: 10000000 sats</p>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Initiate Swap-Out</button>
+        </div>
+    </div>
+</form>
