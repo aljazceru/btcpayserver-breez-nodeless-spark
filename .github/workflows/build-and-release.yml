@@ -17,6 +17,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Fetch all history to ensure we have the latest workflow
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
