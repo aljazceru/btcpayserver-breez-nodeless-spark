@@ -54,7 +54,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.PLUGIN_ARTIFACT_NAME }}
-          path: dist/BTCPayServer.Plugins.Breez*.btcpay
+          path: dist/**/BTCPayServer.Plugins.Breez*.btcpay
           if-no-files-found: error
 
   release:
@@ -72,5 +72,5 @@ jobs:
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: plugin/BTCPayServer.Plugins.Breez*.btcpay
+          files: plugin/**/BTCPayServer.Plugins.Breez*.btcpay
           fail_on_unmatched_files: true
