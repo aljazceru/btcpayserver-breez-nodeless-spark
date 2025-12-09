@@ -1,0 +1,76 @@
+name: Build and Release Plugin
+
+on:
+  push:
+    tags: [ "v*" ]
+  release:
+    types: [ published ]
+
+env:
+  DOTNET_VERSION: "8.0.x"
+  PLUGIN_ARTIFACT_NAME: breez-plugin
+
+jobs:
+  build:
+    name: Build plugin
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Build and package
+        run: |
+          set -euo pipefail
+
+          REPO_ROOT="$PWD"
+          PLUGIN_DIR="$REPO_ROOT/BTCPayServer.Plugins.Breez"
+          BTCPAY_DIR="$REPO_ROOT/btcpayserver"
+          DIST_DIR="$REPO_ROOT/dist"
+          PLUGIN_NAME="BTCPayServer.Plugins.Breez"
+          CONFIG="Release"
+          PLUGIN_OUTPUT="$PLUGIN_DIR/bin/$CONFIG/net8.0"
+
+          echo "📦 Cloning BTCPayServer PluginPacker..."
+          git clone --depth 1 https://github.com/btcpayserver/btcpayserver.git "$BTCPAY_DIR"
+
+          echo "🏗️ Restoring and building plugin..."
+          dotnet restore "$PLUGIN_DIR/$PLUGIN_NAME.csproj"
+          dotnet build "$PLUGIN_DIR/$PLUGIN_NAME.csproj" -c "$CONFIG" --no-restore
+
+          mkdir -p "$DIST_DIR"
+
+          echo "📦 Packaging plugin..."
+          dotnet run --project "$BTCPAY_DIR/BTCPayServer.PluginPacker/BTCPayServer.PluginPacker.csproj" -- \
+            "$PLUGIN_OUTPUT" \
+            "$PLUGIN_NAME" \
+            "$DIST_DIR"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PLUGIN_ARTIFACT_NAME }}
+          path: dist/BTCPayServer.Plugins.Breez*.btcpay
+          if-no-files-found: error
+
+  release:
+    name: Publish release asset
+    needs: build
+    if: github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download built plugin
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.PLUGIN_ARTIFACT_NAME }}
+          path: plugin
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: plugin/BTCPayServer.Plugins.Breez*.btcpay
+          fail_on_unmatched_files: true
