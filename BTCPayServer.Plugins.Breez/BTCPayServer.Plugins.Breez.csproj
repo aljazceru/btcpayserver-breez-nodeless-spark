@@ -12,7 +12,7 @@
     <PropertyGroup>
         <Product>Breez Spark Lightning Plugin</Product>
         <Description>Nodeless Lightning payments powered by Breez Spark SDK</Description>
-        <Version>1.1.0</Version>
+        <Version>0.0.1</Version>
 <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     </PropertyGroup>
     <!-- Plugin development properties -->
