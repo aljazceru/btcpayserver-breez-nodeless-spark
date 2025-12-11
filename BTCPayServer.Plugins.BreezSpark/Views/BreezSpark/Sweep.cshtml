@@ -10,19 +10,12 @@
 @{
     Layout = "_Layout";
     ViewData.SetActivePage("BreezSpark", "Sweep", "Sweep");
-    string storeId = null;
-    if (Model is string s)
+    var storeId = Model switch
     {
-        storeId = s;
-    }
-    else if (Model is StoreDashboardViewModel dashboardModel)
-    {
-        storeId = dashboardModel.StoreId;
-    }
-    else
-    {
-        storeId = Context.GetImplicitStoreId();
-    }
+        string s => s,
+        StoreDashboardViewModel dashboardModel => dashboardModel.StoreId,
+        _ => Context.GetImplicitStoreId() ?? string.Empty
+    };
     var sdk = BreezService.GetClient(storeId)?.Sdk;
     if (sdk is null)
         return;

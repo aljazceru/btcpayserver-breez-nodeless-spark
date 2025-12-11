@@ -6,13 +6,7 @@
 @model List<NormalizedPayment>
 @{
     var data = Model ?? new List<NormalizedPayment>();
-    var storeId = Context.GetImplicitStoreId();
-    if (data is null)
-    {
-        if (string.IsNullOrEmpty(storeId))
-            return;
-    }
-
+    var storeId = Context.GetImplicitStoreId() ?? string.Empty;
     var isDashboard = false;
 }
 @if (isDashboard)

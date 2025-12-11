@@ -146,12 +146,12 @@ namespace BTCPayServer.Plugins.BreezSpark
 
         public object ParsePaymentPromptDetails(JToken details)
         {
-            return details.ToObject<LigthningPaymentPromptDetails>(Serializer);
+            return details.ToObject<LigthningPaymentPromptDetails>(Serializer) ?? new LigthningPaymentPromptDetails();
         }
 
         public LightningPaymentData ParsePaymentDetails(JToken details)
         {
-            return details.ToObject<LightningPaymentData>(Serializer);
+            return details.ToObject<LightningPaymentData>(Serializer) ?? new LightningPaymentData();
         }
 
         object IPaymentMethodHandler.ParsePaymentDetails(JToken details)

@@ -2,6 +2,7 @@
 using BTCPayServer.Abstractions.Contracts;
 using BTCPayServer.Abstractions.Models;
 using BTCPayServer.Abstractions.Services;
+using BTCPayServer;
 using BTCPayServer.Configuration;
 using BTCPayServer.Lightning;
 using BTCPayServer.Payments;
@@ -44,10 +45,8 @@ namespace BTCPayServer.Plugins.BreezSpark
             });
 
             // Add UI extensions for lightning setup tab (like Boltz does)
-            applicationBuilder.AddSingleton<IUIExtension>(new UIExtension("BreezSpark/LNPaymentMethodSetupTab",
-                "ln-payment-method-setup-tab"));
-            applicationBuilder.AddSingleton<IUIExtension>(new UIExtension("BreezSpark/LNPaymentMethodSetupTabhead",
-                "ln-payment-method-setup-tabhead"));
+            applicationBuilder.AddUIExtension("ln-payment-method-setup-tab", "BreezSpark/LNPaymentMethodSetupTab");
+            applicationBuilder.AddUIExtension("ln-payment-method-setup-tabhead", "BreezSpark/LNPaymentMethodSetupTabhead");
 
             // Surface BreezSpark navigation inside the store integrations nav, matching the plugin template pattern.
             applicationBuilder.AddUIExtension("store-integrations-nav", "BreezSpark/BreezSparkNav");

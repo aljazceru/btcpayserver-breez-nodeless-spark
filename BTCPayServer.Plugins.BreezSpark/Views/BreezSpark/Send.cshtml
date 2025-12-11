@@ -92,9 +92,9 @@ else
 @functions {
     public class PaymentDetailsViewModel
     {
-        public string Destination { get; set; }
+        public string Destination { get; set; } = string.Empty;
         public long Amount { get; set; }
         public long Fee { get; set; }
-        public string PrepareResponseJson { get; set; }
+        public string PrepareResponseJson { get; set; } = string.Empty;
     }
 }

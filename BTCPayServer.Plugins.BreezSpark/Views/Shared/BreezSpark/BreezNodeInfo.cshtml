@@ -5,19 +5,12 @@
 @using BTCPayServer.Client
 @inject BreezSparkService BreezService
 @{
-    string storeId = null;
-    if (Model is string s)
+    var storeId = Model switch
     {
-        storeId = s;
-    }
-    else if (Model is StoreDashboardViewModel dashboardModel)
-    {
-        storeId = dashboardModel.StoreId;
-    }
-    else
-    {
-        storeId = Context.GetImplicitStoreId();
-    }
+        string s => s,
+        StoreDashboardViewModel dashboardModel => dashboardModel.StoreId,
+        _ => Context.GetImplicitStoreId() ?? string.Empty
+    };
 
     // In SDK v0.4.1, NodeState API has changed and async calls can't be made from partial views
     // This widget needs to be refactored to receive data from controller
@@ -81,7 +74,7 @@
     {
         <div class="text-center p-3">
             <p class="text-muted">BreezSpark node information not available</p>
-            @if (string.IsNullOrEmpty(storeId))
+            @if (!string.IsNullOrEmpty(storeId))
             {
                 <a asp-action="Configure" asp-controller="BreezSpark" asp-route-storeId="@storeId">Configure BreezSpark</a>
             }

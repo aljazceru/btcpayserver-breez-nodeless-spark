@@ -9,8 +9,8 @@
 @inject PaymentMethodHandlerDictionary PaymentMethodHandlerDictionary
 @* @inject BTCPayNetworkProvider BTCPayNetworkProvider *@
 @{
-    var storeId = Context.GetImplicitStoreId();
-    var address = Context.GetRouteValue("address").ToString();
+    var storeId = Context.GetImplicitStoreId() ?? string.Empty;
+    var address = Context.GetRouteValue("address") as string ?? string.Empty;
     ViewData.SetActivePage("BreezSpark", "Create Swapin Refund", "SwapIn");
 
     @* TODO: Fix for v2.2.1 - derivation settings check needed *@

@@ -13,6 +13,11 @@ using Network = Breez.Sdk.Spark.Network;
 
 namespace BTCPayServer.Plugins.BreezSpark;
 
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type
+#pragma warning disable CS8602 // Dereference of a possibly null reference.
+#pragma warning disable CS8603 // Possible null reference return.
+#pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type.
+
 public class EventLogEntry
 {
     public DateTimeOffset timestamp { get; set; }
@@ -950,3 +955,8 @@ public class NormalizedPayment
     public LightMoney Fee { get; set; } = LightMoney.Zero;
     public string? Description { get; set; }
 }
+
+#pragma warning restore CS8600
+#pragma warning restore CS8602
+#pragma warning restore CS8603
+#pragma warning restore CS8625

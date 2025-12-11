@@ -435,8 +435,6 @@ public class BreezSparkController : Controller
         var pmi = new PaymentMethodId("BTC-LN");
         // In v2.2.1, payment methods are handled differently
         // TODO: Implement proper v2.2.1 payment method handling
-        object? existing = null;
-       
         if (command == "clear")
         {
             await _breezService.Set(storeId, null);
@@ -461,7 +459,7 @@ public class BreezSparkController : Controller
                 {
                     new Mnemonic(settings.Mnemonic);
                 }
-                catch (Exception e)
+                catch (Exception)
                 {
                     ModelState.AddModelError(nameof(settings.Mnemonic), "Invalid mnemonic");
                     return View(settings);
@@ -503,8 +501,8 @@ public class BreezSparkController : Controller
             assetFilter: new AssetFilter.Bitcoin(),
             fromTimestamp: null,
             toTimestamp: null,
-            offset: viewModel.Skip != null ? (uint?)viewModel.Skip : null,
-            limit: viewModel.Count != null ? (uint?)viewModel.Count : null,
+            offset: viewModel.Skip > 0 ? (uint?)viewModel.Skip : null,
+            limit: viewModel.Count > 0 ? (uint?)viewModel.Count : null,
             sortAscending: false
         );
         var response = await client.Sdk.ListPayments(req);

@@ -11,19 +11,12 @@
 @{
     Layout = "_Layout";
     ViewData.SetActivePage("BreezSpark", "Swap Out", "SwapOut");
-    string storeId = null;
-    if (Model is string s)
+    var storeId = Model switch
     {
-        storeId = s;
-    }
-    else if (Model is StoreDashboardViewModel dashboardModel)
-    {
-        storeId = dashboardModel.StoreId;
-    }
-    else
-    {
-        storeId = Context.GetImplicitStoreId();
-    }
+        string s => s,
+        StoreDashboardViewModel dashboardModel => dashboardModel.StoreId,
+        _ => Context.GetImplicitStoreId() ?? string.Empty
+    };
 
     // Simplified fee structure for SDK v0.4.1 compatibility
     var fastFee = 10;

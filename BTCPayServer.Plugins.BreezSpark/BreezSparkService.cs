@@ -54,6 +54,7 @@ public class BreezSparkService:EventHostedServiceBase
 
     public  string GetWorkDir(string storeId)
     {
+        ArgumentNullException.ThrowIfNull(storeId);
         var dir =  _dataDirectories.Value.DataDir;
         return Path.Combine(dir, "Plugins", "BreezSpark",storeId);
     }
@@ -87,6 +88,10 @@ public class BreezSparkService:EventHostedServiceBase
 
     public async Task<BreezSparkLightningClient?> Handle(string? storeId, BreezSparkSettings? settings)
     {
+        if (string.IsNullOrEmpty(storeId))
+        {
+            return null;
+        }
         if (settings is null)
         {
             if (storeId is not null && _clients.Remove(storeId, out var client))
@@ -104,7 +109,7 @@ public class BreezSparkService:EventHostedServiceBase
                 settings.PaymentKey ??= Guid.NewGuid().ToString();
 
                 var client = await BreezSparkLightningClient.Create(
-                    settings.ApiKey,
+                    settings.ApiKey ?? string.Empty,
                     dir,
                     network,
                     new Mnemonic(settings.Mnemonic),

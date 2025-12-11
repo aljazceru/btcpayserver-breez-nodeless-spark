@@ -32,11 +32,6 @@
     SwapInfo? currentSwap = null;
     try
     {
-        // Simplified logic - skip complex payment lookup for now
-        Payment? pendingReceive = null;
-
-        // Skip pending receive logic for SDK v0.4.1 compatibility
-
         // If no pending swap, create a new one
         if (currentSwap == null)
         {
@@ -101,7 +96,6 @@
 
     // Get explorer URL for transaction links
     var network = BTCPayNetworkProvider.GetNetwork<BTCPayNetwork>("BTC");
-    var explorerUrl = network.BlockExplorerLink?.ToString() ?? "#";
 }
 
 @if (hasFeeRates)
