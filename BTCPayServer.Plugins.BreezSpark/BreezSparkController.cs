@@ -483,6 +483,198 @@ public class BreezSparkController : Controller
         return NotFound();
     }
 
+    // Treasury Management Endpoints
+
+    [HttpGet("treasury")]
+    [Authorize(Policy = Policies.CanModifyStoreSettings, AuthenticationSchemes = AuthenticationSchemes.Cookie)]
+    public async Task<IActionResult> Treasury(string storeId)
+    {
+        var client = _breezService.GetClient(storeId);
+        if (client is null)
+        {
+            return RedirectToAction(nameof(Configure), new {storeId});
+        }
+
+        var settings = await _breezService.GetTreasurySettings(storeId) ?? new TreasurySettings();
+        var viewModel = new TreasuryViewModel
+        {
+            StoreId = storeId,
+            Settings = settings
+        };
+
+        // Get current balance for display
+        try
+        {
+            var nodeInfo = await client.Sdk.GetInfo(new GetInfoRequest(ensureSynced: false));
+            viewModel.CurrentBalanceSats = (long)nodeInfo.balanceSats;
+        }
+        catch
+        {
+            viewModel.CurrentBalanceSats = 0;
+        }
+
+        return View(viewModel);
+    }
+
+    [HttpPost("treasury")]
+    [Authorize(Policy = Policies.CanModifyStoreSettings, AuthenticationSchemes = AuthenticationSchemes.Cookie)]
+    public async Task<IActionResult> Treasury(string storeId, TreasuryViewModel model)
+    {
+        var client = _breezService.GetClient(storeId);
+        if (client is null)
+        {
+            return RedirectToAction(nameof(Configure), new {storeId});
+        }
+
+        var settings = model.Settings;
+
+        // Validation
+        if (settings.Enabled)
+        {
+            if (settings.BalanceThresholdSats <= 0)
+            {
+                ModelState.AddModelError("Settings.BalanceThresholdSats", "Balance threshold must be greater than 0");
+            }
+
+            if (settings.BalanceThresholdSats <= settings.ReserveAmountSats)
+            {
+                ModelState.AddModelError("Settings.BalanceThresholdSats", "Balance threshold must be greater than reserve amount");
+            }
+
+            if (settings.MinSweepAmountSats <= 0)
+            {
+                ModelState.AddModelError("Settings.MinSweepAmountSats", "Minimum sweep amount must be greater than 0");
+            }
+
+            if (settings.CheckIntervalMinutes <= 0)
+            {
+                ModelState.AddModelError("Settings.CheckIntervalMinutes", "Check interval must be greater than 0");
+            }
+
+            // Mode-specific validation
+            if (settings.Mode == TreasuryMode.OnChain)
+            {
+                if (settings.OnChainAddressType == OnChainAddressType.SingleAddress)
+                {
+                    if (!TreasuryHelper.ValidateBitcoinAddress(settings.OnChainAddress, NBitcoin.Network.Main))
+                    {
+                        ModelState.AddModelError("Settings.OnChainAddress", "Invalid Bitcoin address");
+                    }
+                }
+                else if (settings.OnChainAddressType == OnChainAddressType.Xpub)
+                {
+                    if (!TreasuryHelper.ValidateXpub(settings.Xpub ?? "", NBitcoin.Network.Main))
+                    {
+                        ModelState.AddModelError("Settings.Xpub", "Invalid extended public key");
+                    }
+                }
+            }
+            else if (settings.Mode == TreasuryMode.Lightning)
+            {
+                if (!TreasuryHelper.ValidateLightningAddress(settings.LightningAddress))
+                {
+                    ModelState.AddModelError("Settings.LightningAddress", "Invalid lightning address format (must be user@domain.com)");
+                }
+            }
+        }
+
+        if (!ModelState.IsValid)
+        {
+            model.StoreId = storeId;
+            try
+            {
+                var nodeInfo = await client.Sdk.GetInfo(new GetInfoRequest(ensureSynced: false));
+                model.CurrentBalanceSats = (long)nodeInfo.balanceSats;
+            }
+            catch
+            {
+                model.CurrentBalanceSats = 0;
+            }
+            return View(model);
+        }
+
+        await _breezService.SetTreasurySettings(storeId, settings);
+        TempData[WellKnownTempData.SuccessMessage] = "Treasury settings saved successfully";
+        return RedirectToAction(nameof(Treasury), new {storeId});
+    }
+
+    [HttpGet("treasury/history")]
+    [Authorize(Policy = Policies.CanViewStoreSettings, AuthenticationSchemes = AuthenticationSchemes.Cookie)]
+    public async Task<IActionResult> TreasuryHistory(string storeId, int skip = 0, int count = 20)
+    {
+        var client = _breezService.GetClient(storeId);
+        if (client is null)
+        {
+            return RedirectToAction(nameof(Configure), new {storeId});
+        }
+
+        var history = await _breezService.GetTreasuryHistory(storeId);
+        var viewModel = new TreasuryHistoryViewModel
+        {
+            StoreId = storeId,
+            Sweeps = history.Sweeps.Skip(skip).Take(count).ToList(),
+            Skip = skip,
+            Count = count,
+            Total = history.Sweeps.Count
+        };
+
+        return View(viewModel);
+    }
+
+    [HttpPost("treasury/test")]
+    [Authorize(Policy = Policies.CanModifyStoreSettings, AuthenticationSchemes = AuthenticationSchemes.Cookie)]
+    public async Task<IActionResult> TreasuryTest(string storeId, long? testAmount)
+    {
+        var client = _breezService.GetClient(storeId);
+        if (client is null)
+        {
+            return RedirectToAction(nameof(Configure), new {storeId});
+        }
+
+        var settings = await _breezService.GetTreasurySettings(storeId);
+        if (settings is null)
+        {
+            TempData[WellKnownTempData.ErrorMessage] = "Treasury settings not configured";
+            return RedirectToAction(nameof(Treasury), new {storeId});
+        }
+
+        if (!testAmount.HasValue || testAmount.Value <= 0)
+        {
+            TempData[WellKnownTempData.ErrorMessage] = "Please specify a valid test amount";
+            return RedirectToAction(nameof(Treasury), new {storeId});
+        }
+
+        try
+        {
+            var nodeInfo = await client.Sdk.GetInfo(new GetInfoRequest(ensureSynced: false));
+            var currentBalanceSats = (long)nodeInfo.balanceSats;
+
+            if (testAmount.Value > currentBalanceSats)
+            {
+                TempData[WellKnownTempData.ErrorMessage] = $"Test amount ({testAmount.Value} sats) exceeds current balance ({currentBalanceSats} sats)";
+                return RedirectToAction(nameof(Treasury), new {storeId});
+            }
+
+            var result = await _breezService.ExecuteTreasurySweep(storeId, client, settings, testAmount.Value, currentBalanceSats);
+
+            if (result.Success)
+            {
+                TempData[WellKnownTempData.SuccessMessage] = $"Test sweep successful! Sent {testAmount.Value} sats, fee: {result.FeeSats} sats";
+            }
+            else
+            {
+                TempData[WellKnownTempData.ErrorMessage] = $"Test sweep failed: {result.Error}";
+            }
+        }
+        catch (Exception ex)
+        {
+            TempData[WellKnownTempData.ErrorMessage] = $"Test sweep error: {ex.Message}";
+            _logger.LogError(ex, "Treasury test sweep failed for store {StoreId}", storeId);
+        }
+
+        return RedirectToAction(nameof(Treasury), new {storeId});
+    }
+
     [Route("transactions")]
     [Authorize(Policy = Policies.CanViewStoreSettings, AuthenticationSchemes = AuthenticationSchemes.Cookie)]
     public async Task<IActionResult> Transactions(string storeId, PaymentsViewModel viewModel)
@@ -589,4 +781,21 @@ public class SwapLimits
 {
     public ulong min { get; set; }
     public ulong max { get; set; }
+}
+
+// Treasury Management ViewModels
+public class TreasuryViewModel
+{
+    public string StoreId { get; set; } = string.Empty;
+    public TreasurySettings Settings { get; set; } = new();
+    public long CurrentBalanceSats { get; set; }
+}
+
+public class TreasuryHistoryViewModel
+{
+    public string StoreId { get; set; } = string.Empty;
+    public List<TreasurySweepRecord> Sweeps { get; set; } = new();
+    public int Skip { get; set; }
+    public int Count { get; set; }
+    public int Total { get; set; }
 }

@@ -1,0 +1,213 @@
+@using BTCPayServer
+@using BTCPayServer.Abstractions.Extensions
+@using BTCPayServer.Plugins.BreezSpark
+@model BTCPayServer.Plugins.BreezSpark.TreasuryViewModel
+@{
+    ViewData.SetActivePage("BreezSpark", "Treasury", "Treasury");
+    var storeId = Context.GetCurrentStoreId();
+}
+
+<form method="post" asp-action="Treasury" asp-controller="BreezSpark" asp-route-storeId="@storeId">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <h3 class="mb-0">
+                    <span>Treasury Management</span>
+                </h3>
+                <div class="d-flex gap-3 mt-3 mt-sm-0">
+                    <button type="submit" class="btn btn-primary">Save Settings</button>
+                    <a asp-action="TreasuryHistory" asp-route-storeId="@storeId" class="btn btn-secondary">View History</a>
+                </div>
+            </div>
+
+            <div class="alert alert-info">
+                <strong>Current Balance:</strong> @Model.CurrentBalanceSats.ToString("N0") sats
+            </div>
+
+            <div class="form-group mb-4">
+                <div class="form-check form-switch">
+                    <input type="checkbox" asp-for="Settings.Enabled" class="form-check-input" id="treasuryEnabled" />
+                    <label class="form-check-label" for="treasuryEnabled">
+                        <strong>Enable Treasury Management</strong>
+                    </label>
+                </div>
+                <span class="text-muted d-block mt-1">When enabled, automatically sweeps funds above the threshold to the configured destination.</span>
+            </div>
+
+            <hr />
+
+            <h4 class="mb-3">Threshold Settings</h4>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label asp-for="Settings.BalanceThresholdSats" class="form-label">Balance Threshold (sats)</label>
+                        <input asp-for="Settings.BalanceThresholdSats" class="form-control" type="number" min="0" />
+                        <span asp-validation-for="Settings.BalanceThresholdSats" class="text-danger"></span>
+                        <span class="text-muted">Trigger sweep when balance exceeds this amount.</span>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label asp-for="Settings.ReserveAmountSats" class="form-label">Reserve Amount (sats)</label>
+                        <input asp-for="Settings.ReserveAmountSats" class="form-control" type="number" min="0" />
+                        <span asp-validation-for="Settings.ReserveAmountSats" class="text-danger"></span>
+                        <span class="text-muted">Keep this amount in the wallet after sweeping.</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label asp-for="Settings.MinSweepAmountSats" class="form-label">Minimum Sweep Amount (sats)</label>
+                        <input asp-for="Settings.MinSweepAmountSats" class="form-control" type="number" min="0" />
+                        <span asp-validation-for="Settings.MinSweepAmountSats" class="text-danger"></span>
+                        <span class="text-muted">Don't sweep if the amount is below this threshold.</span>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label asp-for="Settings.CheckIntervalMinutes" class="form-label">Check Interval (minutes)</label>
+                        <input asp-for="Settings.CheckIntervalMinutes" class="form-control" type="number" min="1" />
+                        <span asp-validation-for="Settings.CheckIntervalMinutes" class="text-danger"></span>
+                        <span class="text-muted">How often to check the balance.</span>
+                    </div>
+                </div>
+            </div>
+
+            <hr />
+
+            <h4 class="mb-3">Step 1: Destination Mode</h4>
+
+            <div class="form-group mb-4">
+                <div class="btn-group w-100" role="group">
+                    <input type="radio" class="btn-check" asp-for="Settings.Mode" value="@TreasuryMode.OnChain" id="modeOnChain" />
+                    <label class="btn btn-outline-primary" for="modeOnChain">On-Chain</label>
+
+                    <input type="radio" class="btn-check" asp-for="Settings.Mode" value="@TreasuryMode.Lightning" id="modeLightning" />
+                    <label class="btn btn-outline-primary" for="modeLightning">Lightning</label>
+                </div>
+            </div>
+
+            <div id="onchainOptions" style="display: @(Model.Settings.Mode == TreasuryMode.OnChain ? "block" : "none");">
+                <h4 class="mb-3">Step 2: On-Chain Address Type</h4>
+
+                <div class="form-group mb-3">
+                    <div class="btn-group w-100" role="group">
+                        <input type="radio" class="btn-check" asp-for="Settings.OnChainAddressType" value="@OnChainAddressType.SingleAddress" id="typeSingleAddress" />
+                        <label class="btn btn-outline-secondary" for="typeSingleAddress">Single Address</label>
+
+                        <input type="radio" class="btn-check" asp-for="Settings.OnChainAddressType" value="@OnChainAddressType.Xpub" id="typeXpub" />
+                        <label class="btn btn-outline-secondary" for="typeXpub">Extended Public Key (Xpub)</label>
+                    </div>
+                </div>
+
+                <div id="singleAddressOptions" style="display: @(Model.Settings.OnChainAddressType == OnChainAddressType.SingleAddress ? "block" : "none");">
+                    <div class="form-group">
+                        <label asp-for="Settings.OnChainAddress" class="form-label">Bitcoin Address</label>
+                        <input asp-for="Settings.OnChainAddress" class="form-control" placeholder="bc1q..." />
+                        <span asp-validation-for="Settings.OnChainAddress" class="text-danger"></span>
+                        <span class="text-muted">Fixed Bitcoin address for all sweeps.</span>
+                    </div>
+                </div>
+
+                <div id="xpubOptions" style="display: @(Model.Settings.OnChainAddressType == OnChainAddressType.Xpub ? "block" : "none");">
+                    <div class="form-group">
+                        <label asp-for="Settings.Xpub" class="form-label">Extended Public Key</label>
+                        <input asp-for="Settings.Xpub" class="form-control" placeholder="xpub..." />
+                        <span asp-validation-for="Settings.Xpub" class="text-danger"></span>
+                        <span class="text-muted">Each sweep will use a new derived address (m/0/index).</span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Current Derivation Index</label>
+                        <input type="text" class="form-control" value="@Model.Settings.XpubDerivationIndex" readonly />
+                        <span class="text-muted">Auto-increments after each successful sweep.</span>
+                        <input type="hidden" asp-for="Settings.XpubDerivationIndex" />
+                    </div>
+                </div>
+
+                <div class="form-group mt-3">
+                    <label asp-for="Settings.OnchainFeeSpeed" class="form-label">Fee Speed</label>
+                    <select asp-for="Settings.OnchainFeeSpeed" class="form-select">
+                        <option value="@OnchainFeeSpeed.Slow">Slow (Low fees, slower confirmation)</option>
+                        <option value="@OnchainFeeSpeed.Medium">Medium (Balanced)</option>
+                        <option value="@OnchainFeeSpeed.Fast">Fast (Higher fees, faster confirmation)</option>
+                    </select>
+                    <span class="text-muted">Transaction confirmation speed preference.</span>
+                </div>
+            </div>
+
+            <div id="lightningOptions" style="display: @(Model.Settings.Mode == TreasuryMode.Lightning ? "block" : "none");">
+                <h4 class="mb-3">Step 2: Lightning Address</h4>
+
+                <div class="form-group">
+                    <label asp-for="Settings.LightningAddress" class="form-label">Lightning Address</label>
+                    <input asp-for="Settings.LightningAddress" class="form-control" placeholder="user@domain.com" />
+                    <span asp-validation-for="Settings.LightningAddress" class="text-danger"></span>
+                    <span class="text-muted">Lightning address in user@domain.com format.</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</form>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <hr />
+        <h4 class="mb-3">Test Sweep</h4>
+        <div class="alert alert-warning">
+            <strong>Warning:</strong> This will execute a real payment to the configured destination.
+        </div>
+        <form method="post" asp-action="TreasuryTest" asp-controller="BreezSpark" asp-route-storeId="@storeId">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <input type="number" name="testAmount" class="form-control" placeholder="Amount in sats" min="1" />
+                        <button type="submit" class="btn btn-warning">Execute Test Sweep</button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const modeOnChain = document.getElementById('modeOnChain');
+        const modeLightning = document.getElementById('modeLightning');
+        const onchainOptions = document.getElementById('onchainOptions');
+        const lightningOptions = document.getElementById('lightningOptions');
+
+        const typeSingleAddress = document.getElementById('typeSingleAddress');
+        const typeXpub = document.getElementById('typeXpub');
+        const singleAddressOptions = document.getElementById('singleAddressOptions');
+        const xpubOptions = document.getElementById('xpubOptions');
+
+        function updateModeVisibility() {
+            if (modeOnChain.checked) {
+                onchainOptions.style.display = 'block';
+                lightningOptions.style.display = 'none';
+            } else {
+                onchainOptions.style.display = 'none';
+                lightningOptions.style.display = 'block';
+            }
+        }
+
+        function updateAddressTypeVisibility() {
+            if (typeSingleAddress.checked) {
+                singleAddressOptions.style.display = 'block';
+                xpubOptions.style.display = 'none';
+            } else {
+                singleAddressOptions.style.display = 'none';
+                xpubOptions.style.display = 'block';
+            }
+        }
+
+        modeOnChain.addEventListener('change', updateModeVisibility);
+        modeLightning.addEventListener('change', updateModeVisibility);
+        typeSingleAddress.addEventListener('change', updateAddressTypeVisibility);
+        typeXpub.addEventListener('change', updateAddressTypeVisibility);
+    });
+</script>
