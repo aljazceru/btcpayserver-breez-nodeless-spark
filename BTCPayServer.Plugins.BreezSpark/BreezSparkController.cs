@@ -567,11 +567,6 @@ public class BreezSparkController : Controller
                     {
                         ModelState.AddModelError("Settings.Xpub", "Invalid extended public key");
                     }
-
-                    if (!TreasuryHelper.ValidateDerivationPath(settings.XpubDerivationPath, out var pathError))
-                    {
-                        ModelState.AddModelError("Settings.XpubDerivationPath", pathError ?? "Invalid derivation path");
-                    }
                 }
             }
             else if (settings.Mode == TreasuryMode.Lightning)
@@ -660,11 +655,17 @@ public class BreezSparkController : Controller
                 return RedirectToAction(nameof(Treasury), new {storeId});
             }
 
-            var result = await _breezService.ExecuteTreasurySweep(storeId, client, settings, testAmount.Value, currentBalanceSats);
+            // Use minimum of 1000 sats or 10% of test amount as floor for retry logic
+            var minAmount = Math.Max(1000, testAmount.Value / 10);
+
+            // Use retry logic to handle insufficient funds errors
+            var result = await _breezService.ExecuteTreasurySweepWithRetry(
+                storeId, client, settings, testAmount.Value, currentBalanceSats, minAmount);
 
             if (result.Success)
             {
-                TempData[WellKnownTempData.SuccessMessage] = $"Test sweep successful! Sent {testAmount.Value} sats, fee: {result.FeeSats} sats";
+                var actualAmount = result.AmountSats > 0 ? result.AmountSats : testAmount.Value;
+                TempData[WellKnownTempData.SuccessMessage] = $"Test sweep successful! Sent {actualAmount} sats, fee: {result.FeeSats} sats";
             }
             else
             {
@@ -682,7 +683,7 @@ public class BreezSparkController : Controller
 
     [HttpPost("treasury/preview-addresses")]
     [Authorize(Policy = Policies.CanModifyStoreSettings, AuthenticationSchemes = AuthenticationSchemes.Cookie)]
-    public async Task<IActionResult> TreasuryPreviewAddresses(string storeId, string? xpub, string? derivationPath, uint? startIndex, int? count)
+    public async Task<IActionResult> TreasuryPreviewAddresses(string storeId, string? xpub, uint? startIndex, int? count)
     {
         var client = _breezService.GetClient(storeId);
         if (client is null)
@@ -700,11 +701,6 @@ public class BreezSparkController : Controller
             return Json(new { success = false, error = "Invalid extended public key" });
         }
 
-        if (!TreasuryHelper.ValidateDerivationPath(derivationPath, out var pathError))
-        {
-            return Json(new { success = false, error = pathError ?? "Invalid derivation path" });
-        }
-
         try
         {
             var start = startIndex ?? 0;
@@ -715,7 +711,7 @@ public class BreezSparkController : Controller
                 start,
                 addressCount,
                 NBitcoin.Network.Main,
-                derivationPath);
+                "0/{index}"); // Hardcoded standard receiving path
 
             return Json(new
             {
@@ -724,7 +720,7 @@ public class BreezSparkController : Controller
                 {
                     index = a.Index,
                     address = a.Address,
-                    path = (derivationPath ?? "0/{index}").Replace("{index}", a.Index.ToString())
+                    path = $"0/{a.Index}"
                 })
             });
         }
@@ -770,12 +766,21 @@ public class BreezSparkController : Controller
 
             // Fallback: show raw SDK payment even if we lack invoice context
             long amountSat = 0;
+            string description = "";
             if (p.details is PaymentDetails.Lightning l && !string.IsNullOrEmpty(l.invoice))
             {
                 var nbitcoinNetwork = _btcPayNetworkProvider.GetNetwork<BTCPayNetwork>("BTC")?.NBitcoinNetwork ?? NBitcoin.Network.Main;
-                if (BOLT11PaymentRequest.TryParse(l.invoice, out var pr, nbitcoinNetwork) && pr?.MinimumAmount is not null)
+                if (BOLT11PaymentRequest.TryParse(l.invoice, out var pr, nbitcoinNetwork))
                 {
-                    amountSat = (long)pr.MinimumAmount.ToUnit(LightMoneyUnit.Satoshi);
+                    if (pr.MinimumAmount is not null)
+                    {
+                        amountSat = (long)pr.MinimumAmount.ToUnit(LightMoneyUnit.Satoshi);
+                    }
+                    description = pr.ShortDescription ?? l.description ?? "";
+                }
+                else
+                {
+                    description = l.description ?? "";
                 }
             }
 
@@ -792,7 +797,7 @@ public class BreezSparkController : Controller
                 Timestamp = p.timestamp,
                 Amount = LightMoney.Satoshis(amountSat),
                 Fee = LightMoney.Satoshis(feeSat),
-                Description = p.details?.ToString() ?? "BreezSpark payment"
+                Description = description
             });
         }
         viewModel.Payments = normalized;

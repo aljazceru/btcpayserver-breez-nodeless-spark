@@ -16,7 +16,8 @@ public record SweepResult(
     string? PaymentId,
     string? PaymentHash,
     long FeeSats,
-    string? Error
+    string? Error,
+    long AmountSats = 0
 );
 
 /// <summary>

@@ -78,7 +78,7 @@
 
             <hr />
 
-            <h4 class="mb-3">Step 1: Destination Mode</h4>
+            <h4 class="mb-3">Destination Mode</h4>
 
             <div class="form-group mb-4">
                 <div class="btn-group w-100" role="group">
@@ -91,7 +91,7 @@
             </div>
 
             <div id="onchainOptions" style="display: @(Model.Settings.Mode == TreasuryMode.OnChain ? "block" : "none");">
-                <h4 class="mb-3">Step 2: On-Chain Address Type</h4>
+                <h4 class="mb-3">On-Chain Address Type</h4>
 
                 <div class="form-group mb-3">
                     <div class="btn-group w-100" role="group">
@@ -120,28 +120,21 @@
                         <span class="text-muted">The extended public key from your wallet.</span>
                     </div>
                     <div class="form-group mt-3">
-                        <label asp-for="Settings.XpubDerivationPath" class="form-label">Derivation Path</label>
-                        <input asp-for="Settings.XpubDerivationPath" class="form-control" placeholder="0/{index}" id="derivationPathInput" />
-                        <span asp-validation-for="Settings.XpubDerivationPath" class="text-danger"></span>
-                        <span class="text-muted">
-                            Path relative to the xpub. Use <code>{index}</code> as the placeholder for the address index.<br/>
-                            Examples: <code>0/{index}</code> (default), <code>0/0/{index}</code>, <code>1/{index}</code> (change addresses)
+                        <button type="button" class="btn btn-outline-secondary" id="previewAddressesBtn">
+                            <span id="previewBtnText">Show Address Preview</span>
+                            <span id="previewBtnIcon">▼</span>
+                        </button>
+                        <span class="text-muted d-block mt-1">
+                            Preview next addresses that will be used for sweeps.
+                            Current index: <strong>@Model.Settings.XpubDerivationIndex</strong> (auto-increments after each sweep)
                         </span>
-                    </div>
-                    <div class="form-group mt-3">
-                        <label class="form-label">Current Derivation Index</label>
-                        <div class="input-group">
-                            <input type="number" class="form-control" id="derivationIndexInput" value="@Model.Settings.XpubDerivationIndex" min="0" />
-                            <button type="button" class="btn btn-outline-secondary" id="previewAddressesBtn">Preview Addresses</button>
-                        </div>
-                        <span class="text-muted">The next sweep will use this index. Auto-increments after each successful sweep.</span>
-                        <input type="hidden" asp-for="Settings.XpubDerivationIndex" id="hiddenDerivationIndex" />
+                        <input type="hidden" asp-for="Settings.XpubDerivationIndex" />
                     </div>
 
                     <div id="addressPreviewContainer" class="mt-3" style="display: none;">
                         <div class="card">
                             <div class="card-header d-flex justify-content-between align-items-center">
-                                <span>Address Preview</span>
+                                <span>Address Preview (starting from index @Model.Settings.XpubDerivationIndex)</span>
                                 <button type="button" class="btn-close" id="closePreviewBtn" aria-label="Close"></button>
                             </div>
                             <div class="card-body">
@@ -167,7 +160,6 @@
                             </div>
                         </div>
                     </div>
-                </div>
 
                 <div class="form-group mt-3">
                     <label asp-for="Settings.OnchainFeeSpeed" class="form-label">Fee Speed</label>
@@ -179,9 +171,10 @@
                     <span class="text-muted">Transaction confirmation speed preference.</span>
                 </div>
             </div>
+            </div>
 
             <div id="lightningOptions" style="display: @(Model.Settings.Mode == TreasuryMode.Lightning ? "block" : "none");">
-                <h4 class="mb-3">Step 2: Lightning Address</h4>
+                <h4 class="mb-3">Lightning Address</h4>
 
                 <div class="form-group">
                     <label asp-for="Settings.LightningAddress" class="form-label">Lightning Address</label>
@@ -236,9 +229,6 @@
         const previewTable = document.getElementById('previewTable');
         const previewTableBody = document.getElementById('previewTableBody');
         const xpubInput = document.getElementById('xpubInput');
-        const derivationPathInput = document.getElementById('derivationPathInput');
-        const derivationIndexInput = document.getElementById('derivationIndexInput');
-        const hiddenDerivationIndex = document.getElementById('hiddenDerivationIndex');
 
         function updateModeVisibility() {
             if (modeOnChain.checked) {
@@ -260,19 +250,23 @@
             }
         }
 
-        // Sync visible index input with hidden field
-        derivationIndexInput.addEventListener('change', function() {
-            hiddenDerivationIndex.value = this.value;
-        });
-
         // Preview addresses functionality
         async function previewAddresses() {
             const xpub = xpubInput.value.trim();
-            const derivationPath = derivationPathInput.value.trim() || '0/{index}';
-            const startIndex = parseInt(derivationIndexInput.value) || 0;
 
             if (!xpub) {
                 alert('Please enter an extended public key first.');
+                return;
+            }
+
+            // Toggle preview container visibility
+            const isVisible = previewContainer.style.display === 'block';
+
+            if (isVisible) {
+                // Hide preview
+                previewContainer.style.display = 'none';
+                document.getElementById('previewBtnText').textContent = 'Show Address Preview';
+                document.getElementById('previewBtnIcon').textContent = '▼';
                 return;
             }
 
@@ -281,12 +275,13 @@
             previewLoading.style.display = 'block';
             previewError.style.display = 'none';
             previewTable.style.display = 'none';
+            document.getElementById('previewBtnText').textContent = 'Hide Address Preview';
+            document.getElementById('previewBtnIcon').textContent = '▲';
 
             try {
                 const formData = new FormData();
                 formData.append('xpub', xpub);
-                formData.append('derivationPath', derivationPath);
-                formData.append('startIndex', startIndex.toString());
+                formData.append('startIndex', '@Model.Settings.XpubDerivationIndex');
                 formData.append('count', '5');
 
                 const response = await fetch('@Url.Action("TreasuryPreviewAddresses", "BreezSpark", new { storeId = Model.StoreId })', {
@@ -324,6 +319,8 @@
 
         closePreviewBtn.addEventListener('click', function() {
             previewContainer.style.display = 'none';
+            document.getElementById('previewBtnText').textContent = 'Show Address Preview';
+            document.getElementById('previewBtnIcon').textContent = '▼';
         });
 
         modeOnChain.addEventListener('change', updateModeVisibility);

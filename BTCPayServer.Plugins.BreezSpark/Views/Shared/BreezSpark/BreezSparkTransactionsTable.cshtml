@@ -56,7 +56,7 @@
 
                         </td>
                         <td>
-                            <span >@DateTimeOffset.FromUnixTimeSeconds((long)payment.Timestamp).ToTimeAgo() ?? "Unknown"</span>
+                            <span>@DateTimeOffset.FromUnixTimeSeconds((long)payment.Timestamp).ToString("yyyy-MM-dd HH:mm:ss")</span>
                         </td>
                         <td>
                             <span >@(payment.PaymentType == PaymentType.Receive ? "receive" : "send")</span>

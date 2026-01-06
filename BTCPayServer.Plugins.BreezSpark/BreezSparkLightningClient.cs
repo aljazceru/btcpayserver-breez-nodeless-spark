@@ -595,6 +595,26 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
         return null;
     }
 
+    private string? ExtractDescriptionFromBolt11(string? bolt11)
+    {
+        if (string.IsNullOrEmpty(bolt11))
+            return null;
+
+        try
+        {
+            if (BOLT11PaymentRequest.TryParse(bolt11, out var pr, _network))
+            {
+                return pr.ShortDescription;
+            }
+        }
+        catch
+        {
+            // Ignore parse errors and return null
+        }
+
+        return null;
+    }
+
     private LightMoney GetFeeFromPayment(Payment payment)
     {
         return payment.fees % 1000 == 0
@@ -684,7 +704,7 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
             Timestamp = payment.timestamp,
             Amount = amount,
             Fee = fee,
-            Description = description ?? bolt11
+            Description = description ?? ExtractDescriptionFromBolt11(bolt11) ?? ""
         };
     }
 

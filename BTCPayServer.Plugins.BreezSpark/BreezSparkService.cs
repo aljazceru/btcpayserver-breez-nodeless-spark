@@ -372,21 +372,249 @@ public class BreezSparkService:EventHostedServiceBase
         if (currentBalanceSats <= settings.BalanceThresholdSats)
             return;
 
-        // Calculate sweep amount
-        var sweepAmount = currentBalanceSats - settings.ReserveAmountSats;
+        // Calculate initial sweep amount (before fees)
+        var maxSweepAmount = currentBalanceSats - settings.ReserveAmountSats;
 
         // Check minimum sweep amount
-        if (sweepAmount < settings.MinSweepAmountSats)
+        if (maxSweepAmount < settings.MinSweepAmountSats)
         {
             _logger.LogDebug("Sweep amount {Amount} is below minimum {Min} for store {StoreId}",
+                maxSweepAmount, settings.MinSweepAmountSats, storeId);
+            return;
+        }
+
+        // Try to estimate fees and adjust sweep amount accordingly
+        var sweepAmount = await EstimateSweepAmountWithFees(client, settings, maxSweepAmount, storeId);
+
+        if (sweepAmount < settings.MinSweepAmountSats)
+        {
+            _logger.LogDebug("Sweep amount after fee estimation {Amount} is below minimum {Min} for store {StoreId}",
                 sweepAmount, settings.MinSweepAmountSats, storeId);
             return;
         }
 
-        _logger.LogInformation("Initiating treasury sweep for store {StoreId}: amount={Amount} sats",
-            storeId, sweepAmount);
+        // Try sweep with progressive reduction on insufficient funds (fallback for edge cases)
+        const int maxRetries = 5;
+        const double reductionFactor = 0.9; // Reduce by 10% each retry
 
-        await ExecuteTreasurySweep(storeId, client, settings, sweepAmount, currentBalanceSats);
+        for (int attempt = 0; attempt < maxRetries; attempt++)
+        {
+            if (sweepAmount < settings.MinSweepAmountSats)
+            {
+                _logger.LogWarning(
+                    "Treasury sweep for store {StoreId}: reduced amount {Amount} fell below minimum {Min}, giving up",
+                    storeId, sweepAmount, settings.MinSweepAmountSats);
+                return;
+            }
+
+            _logger.LogInformation(
+                "Initiating treasury sweep for store {StoreId}: amount={Amount} sats (attempt {Attempt}/{Max})",
+                storeId, sweepAmount, attempt + 1, maxRetries);
+
+            var result = await ExecuteTreasurySweep(storeId, client, settings, sweepAmount, currentBalanceSats);
+
+            if (result.Success)
+            {
+                return; // Success, we're done
+            }
+
+            // Check if this is an insufficient funds error - retry with smaller amount
+            if (result.Error?.Contains("insufficient funds", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                var previousAmount = sweepAmount;
+                sweepAmount = (long)(sweepAmount * reductionFactor);
+
+                _logger.LogInformation(
+                    "Treasury sweep insufficient funds for store {StoreId}, reducing amount from {Previous} to {New} sats",
+                    storeId, previousAmount, sweepAmount);
+
+                continue; // Try again with reduced amount
+            }
+
+            // Other error - don't retry
+            _logger.LogWarning(
+                "Treasury sweep failed for store {StoreId} with non-retryable error: {Error}",
+                storeId, result.Error);
+            return;
+        }
+
+        _logger.LogWarning(
+            "Treasury sweep for store {StoreId}: exhausted {Max} retries, giving up",
+            storeId, maxRetries);
+    }
+
+    /// <summary>
+    /// Estimates fees and returns the adjusted sweep amount (sweep amount - estimated fees).
+    /// Returns the original amount if fee estimation fails.
+    /// </summary>
+    private async Task<long> EstimateSweepAmountWithFees(
+        BreezSparkLightningClient client,
+        TreasurySettings settings,
+        long maxSweepAmount,
+        string storeId)
+    {
+        try
+        {
+            string destination;
+
+            if (settings.Mode == TreasuryMode.OnChain)
+            {
+                if (settings.OnChainAddressType == OnChainAddressType.Xpub && !string.IsNullOrEmpty(settings.Xpub))
+                {
+                    destination = TreasuryHelper.DeriveAddressFromXpub(
+                        settings.Xpub,
+                        settings.XpubDerivationIndex,
+                        NBitcoin.Network.Main,
+                        "0/{index}");
+                }
+                else if (!string.IsNullOrEmpty(settings.OnChainAddress))
+                {
+                    destination = settings.OnChainAddress;
+                }
+                else
+                {
+                    return maxSweepAmount; // No destination configured, return original amount
+                }
+
+                // Prepare on-chain payment to estimate fees
+                var prepareRequest = new PrepareSendPaymentRequest(
+                    paymentRequest: destination,
+                    amount: new BigInteger(maxSweepAmount));
+
+                var prepareResponse = await client.Sdk.PrepareSendPayment(prepareRequest);
+
+                if (prepareResponse.paymentMethod is SendPaymentMethod.BitcoinAddress bitcoinMethod)
+                {
+                    var confirmationSpeed = settings.OnchainFeeSpeed switch
+                    {
+                        OnchainFeeSpeed.Slow => OnchainConfirmationSpeed.Slow,
+                        OnchainFeeSpeed.Medium => OnchainConfirmationSpeed.Medium,
+                        OnchainFeeSpeed.Fast => OnchainConfirmationSpeed.Fast,
+                        _ => OnchainConfirmationSpeed.Medium
+                    };
+
+                    var feeQuote = confirmationSpeed switch
+                    {
+                        OnchainConfirmationSpeed.Slow => bitcoinMethod.feeQuote.speedSlow,
+                        OnchainConfirmationSpeed.Fast => bitcoinMethod.feeQuote.speedFast,
+                        _ => bitcoinMethod.feeQuote.speedMedium
+                    };
+
+                    var estimatedFees = (long)(feeQuote.userFeeSat + feeQuote.l1BroadcastFeeSat);
+                    // Add 10% buffer for fee fluctuation
+                    var feeBuffer = (long)(estimatedFees * 0.1);
+                    var adjustedAmount = maxSweepAmount - estimatedFees - feeBuffer;
+
+                    _logger.LogDebug(
+                        "Treasury fee estimation for store {StoreId}: original={Original}, estimatedFee={Fee}, buffer={Buffer}, adjusted={Adjusted}",
+                        storeId, maxSweepAmount, estimatedFees, feeBuffer, adjustedAmount);
+
+                    return adjustedAmount;
+                }
+            }
+            else // Lightning mode
+            {
+                if (string.IsNullOrEmpty(settings.LightningAddress))
+                {
+                    return maxSweepAmount; // No destination configured, return original amount
+                }
+
+                // Resolve lightning address to BOLT11 for fee estimation
+                var httpClient = _httpClientFactory.CreateClient("TreasuryLnurl");
+                var bolt11 = await TreasuryHelper.ResolveLightningAddress(
+                    settings.LightningAddress,
+                    maxSweepAmount,
+                    httpClient);
+
+                if (string.IsNullOrEmpty(bolt11))
+                {
+                    return maxSweepAmount; // Can't resolve, return original amount
+                }
+
+                var prepareRequest = new PrepareSendPaymentRequest(paymentRequest: bolt11);
+                var prepareResponse = await client.Sdk.PrepareSendPayment(prepareRequest);
+
+                if (prepareResponse.paymentMethod is SendPaymentMethod.Bolt11Invoice bolt11Method)
+                {
+                    var estimatedFees = (long)(bolt11Method.lightningFeeSats + (bolt11Method.sparkTransferFeeSats ?? 0));
+                    // Add 10% buffer for routing fee fluctuation
+                    var feeBuffer = (long)(estimatedFees * 0.1);
+                    var adjustedAmount = maxSweepAmount - estimatedFees - feeBuffer;
+
+                    _logger.LogDebug(
+                        "Treasury fee estimation for store {StoreId}: original={Original}, estimatedFee={Fee}, buffer={Buffer}, adjusted={Adjusted}",
+                        storeId, maxSweepAmount, estimatedFees, feeBuffer, adjustedAmount);
+
+                    return adjustedAmount;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to estimate fees for treasury sweep in store {StoreId}, using original amount", storeId);
+        }
+
+        return maxSweepAmount;
+    }
+
+    /// <summary>
+    /// Executes a treasury sweep with retry logic on insufficient funds.
+    /// This is the public API for manual sweeps from the controller.
+    /// </summary>
+    public async Task<SweepResult> ExecuteTreasurySweepWithRetry(
+        string storeId,
+        BreezSparkLightningClient client,
+        TreasurySettings settings,
+        long requestedAmountSats,
+        long currentBalanceSats,
+        long minAmountSats)
+    {
+        const int maxRetries = 5;
+        const double reductionFactor = 0.9; // Reduce by 10% each retry
+
+        var sweepAmount = requestedAmountSats;
+        SweepResult? lastResult = null;
+
+        for (int attempt = 0; attempt < maxRetries; attempt++)
+        {
+            if (sweepAmount < minAmountSats)
+            {
+                _logger.LogWarning(
+                    "Treasury sweep for store {StoreId}: reduced amount {Amount} fell below minimum {Min}, giving up",
+                    storeId, sweepAmount, minAmountSats);
+                return lastResult ?? new SweepResult(false, null, null, 0, $"Amount {sweepAmount} below minimum {minAmountSats}", sweepAmount);
+            }
+
+            _logger.LogInformation(
+                "Executing treasury sweep for store {StoreId}: amount={Amount} sats (attempt {Attempt}/{Max})",
+                storeId, sweepAmount, attempt + 1, maxRetries);
+
+            var result = await ExecuteTreasurySweep(storeId, client, settings, sweepAmount, currentBalanceSats);
+            lastResult = result;
+
+            if (result.Success)
+            {
+                return result;
+            }
+
+            // Check if this is an insufficient funds error - retry with smaller amount
+            if (result.Error?.Contains("insufficient funds", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                var previousAmount = sweepAmount;
+                sweepAmount = (long)(sweepAmount * reductionFactor);
+
+                _logger.LogInformation(
+                    "Treasury sweep insufficient funds for store {StoreId}, reducing amount from {Previous} to {New} sats",
+                    storeId, previousAmount, sweepAmount);
+
+                continue;
+            }
+
+            // Other error - don't retry
+            return result;
+        }
+
+        return lastResult ?? new SweepResult(false, null, null, 0, $"Exhausted {maxRetries} retries", sweepAmount);
     }
 
     public async Task<SweepResult> ExecuteTreasurySweep(
@@ -418,7 +646,7 @@ public class BreezSparkService:EventHostedServiceBase
                         settings.Xpub,
                         settings.XpubDerivationIndex,
                         NBitcoin.Network.Main,
-                        settings.XpubDerivationPath);
+                        "0/{index}");
                 }
                 else if (!string.IsNullOrEmpty(settings.OnChainAddress))
                 {
@@ -538,7 +766,7 @@ public class BreezSparkService:EventHostedServiceBase
 
             await AddTreasurySweepRecord(storeId, record);
 
-            return new SweepResult(true, record.PaymentId, record.PaymentHash, feeSats, null);
+            return new SweepResult(true, record.PaymentId, record.PaymentHash, feeSats, null, amountSats);
         }
         catch (Exception ex)
         {
@@ -550,7 +778,7 @@ public class BreezSparkService:EventHostedServiceBase
 
             await AddTreasurySweepRecord(storeId, record);
 
-            return new SweepResult(false, null, null, 0, ex.Message);
+            return new SweepResult(false, null, null, 0, ex.Message, amountSats);
         }
     }
 
