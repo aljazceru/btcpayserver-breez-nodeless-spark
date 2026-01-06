@@ -186,25 +186,12 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
 
     public async Task<LightningNodeInformation> GetInfo(CancellationToken cancellation = default)
     {
-        try
-        {
-            var response = await _sdk.GetInfo(new GetInfoRequest(ensureSynced: false));
-
-            return new LightningNodeInformation()
-            {
-                Alias = "BreezSpark (nodeless)",
-                BlockHeight = 0, // Spark SDK doesn't expose block height
-                Version = "0.4.1" // SDK version hardcoded since property not found
-            };
-        }
-        catch
-        {
-            return new LightningNodeInformation()
-            {
-                Alias = "BreezSpark (nodeless)",
-                BlockHeight = 0
-            };
-        }
+        // Breez Spark is a nodeless wallet (similar to LNDhub/LNbits) that doesn't expose
+        // block height information. Throwing NotSupportedException tells BTCPayServer to
+        // skip the block sync check, which would otherwise fail because the SDK returns
+        // no block height and BTCPayServer would compare 0 against the chain height.
+        // This is the same pattern used by LNDhub and LNbits implementations.
+        throw new NotSupportedException("Breez Spark is a nodeless wallet that does not expose node information");
     }
 
     public async Task<LightningNodeBalance> GetBalance(CancellationToken cancellation = default)

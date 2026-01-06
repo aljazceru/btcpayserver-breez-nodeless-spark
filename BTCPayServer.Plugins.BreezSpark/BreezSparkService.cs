@@ -82,11 +82,14 @@ public class BreezSparkService:EventHostedServiceBase
         {
             try
             {
-
+                _logger.LogInformation("Initializing BreezSpark client for store {StoreId}", keyValuePair.Key);
                 await Handle(keyValuePair.Key, keyValuePair.Value);
+                _logger.LogInformation("Successfully initialized BreezSpark client for store {StoreId}", keyValuePair.Key);
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogError(ex, "Failed to initialize BreezSpark client for store {StoreId}: {Message}",
+                    keyValuePair.Key, ex.Message);
             }
         }
 
@@ -206,9 +209,24 @@ public class BreezSparkService:EventHostedServiceBase
     {
         tcs.Task.GetAwaiter().GetResult();
         if(paymentKey is null)
+        {
+            _logger.LogWarning("GetClientByPaymentKey called with null paymentKey");
             return null;
+        }
         var match = _settings.FirstOrDefault(pair => pair.Value.PaymentKey == paymentKey).Key;
-        return GetClient(match);
+        if (match is null)
+        {
+            _logger.LogWarning("No settings found for paymentKey {PaymentKey}. Available keys: [{Keys}]",
+                paymentKey, string.Join(", ", _settings.Values.Select(s => s.PaymentKey ?? "null")));
+            return null;
+        }
+        var client = GetClient(match);
+        if (client is null)
+        {
+            _logger.LogWarning("Client not found for store {StoreId} with paymentKey {PaymentKey}. Available client stores: [{Stores}]",
+                match, paymentKey, string.Join(", ", _clients.Keys));
+        }
+        return client;
     }
 
     // Treasury Management Methods
@@ -399,7 +417,8 @@ public class BreezSparkService:EventHostedServiceBase
                     destination = TreasuryHelper.DeriveAddressFromXpub(
                         settings.Xpub,
                         settings.XpubDerivationIndex,
-                        NBitcoin.Network.Main);
+                        NBitcoin.Network.Main,
+                        settings.XpubDerivationPath);
                 }
                 else if (!string.IsNullOrEmpty(settings.OnChainAddress))
                 {

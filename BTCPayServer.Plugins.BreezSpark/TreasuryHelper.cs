@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -24,21 +25,155 @@ public record SweepResult(
 public static class TreasuryHelper
 {
     /// <summary>
-    /// Derives a Bitcoin address from an xpub at the given index using BIP44 standard
-    /// Path: m/0/{index} (receiving addresses)
+    /// Derives a Bitcoin address from an xpub at the given index using a custom derivation path
+    /// Path format: Use {index} as placeholder for the derivation index
+    /// Examples: "0/{index}", "0/0/{index}", "84'/0'/0'/0/{index}"
     /// </summary>
-    public static string DeriveAddressFromXpub(string xpub, uint index, Network network)
+    public static string DeriveAddressFromXpub(string xpub, uint index, Network network, string? derivationPath = null)
     {
         var extPubKey = ExtPubKey.Parse(xpub, network);
 
-        // Derive m/0/{index} - standard receiving address path
-        var derivedKey = extPubKey.Derive(0).Derive(index);
+        // Default to standard receiving path if not specified
+        var path = string.IsNullOrWhiteSpace(derivationPath) ? "0/{index}" : derivationPath;
+
+        // Replace the {index} placeholder with actual index
+        var resolvedPath = path.Replace("{index}", index.ToString());
+
+        // Parse and apply the derivation path
+        var derivedKey = DeriveFromPath(extPubKey, resolvedPath);
 
         // Generate native segwit (bech32) address by default
         var pubKey = derivedKey.PubKey;
         var address = pubKey.GetAddress(ScriptPubKeyType.Segwit, network);
 
         return address.ToString();
+    }
+
+    /// <summary>
+    /// Derives an ExtPubKey from a path string like "0/5" or "0/0/3"
+    /// Supports both hardened (') and non-hardened derivation
+    /// </summary>
+    private static ExtPubKey DeriveFromPath(ExtPubKey key, string path)
+    {
+        // Remove leading "m/" if present (common in full paths)
+        if (path.StartsWith("m/", StringComparison.OrdinalIgnoreCase))
+        {
+            path = path.Substring(2);
+        }
+
+        // Split path into components
+        var parts = path.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+
+        var result = key;
+        foreach (var part in parts)
+        {
+            var trimmed = part.Trim();
+            if (string.IsNullOrEmpty(trimmed))
+                continue;
+
+            // Check for hardened derivation (ends with ' or h or H)
+            var isHardened = trimmed.EndsWith("'") || trimmed.EndsWith("h", StringComparison.OrdinalIgnoreCase);
+            var indexStr = isHardened ? trimmed.TrimEnd('\'', 'h', 'H') : trimmed;
+
+            if (!uint.TryParse(indexStr, out var derivationIndex))
+            {
+                throw new ArgumentException($"Invalid derivation path component: {part}");
+            }
+
+            // Note: Hardened derivation from xpub is not possible (requires private key)
+            // If hardened path is specified with xpub, we can only derive the non-hardened portion
+            if (isHardened)
+            {
+                throw new ArgumentException($"Cannot derive hardened path '{part}' from extended public key. " +
+                    "Hardened derivation requires the master private key. " +
+                    "For xpub, use only non-hardened indices (without ' suffix).");
+            }
+
+            result = result.Derive(derivationIndex);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Validates a derivation path string
+    /// Returns true if the path is valid for xpub derivation
+    /// </summary>
+    public static bool ValidateDerivationPath(string? path, out string? error)
+    {
+        error = null;
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return true; // Empty path means use default
+        }
+
+        // Must contain {index} placeholder
+        if (!path.Contains("{index}"))
+        {
+            error = "Derivation path must contain {index} placeholder";
+            return false;
+        }
+
+        // Replace placeholder to validate the rest
+        var testPath = path.Replace("{index}", "0");
+
+        // Remove leading m/ if present
+        if (testPath.StartsWith("m/", StringComparison.OrdinalIgnoreCase))
+        {
+            testPath = testPath.Substring(2);
+        }
+
+        var parts = testPath.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+        foreach (var part in parts)
+        {
+            var trimmed = part.Trim();
+            if (string.IsNullOrEmpty(trimmed))
+                continue;
+
+            var isHardened = trimmed.EndsWith("'") || trimmed.EndsWith("h", StringComparison.OrdinalIgnoreCase);
+            var indexStr = isHardened ? trimmed.TrimEnd('\'', 'h', 'H') : trimmed;
+
+            if (!uint.TryParse(indexStr, out _))
+            {
+                error = $"Invalid path component: '{part}'. Each component must be a number.";
+                return false;
+            }
+
+            if (isHardened)
+            {
+                error = $"Hardened derivation ('{part}') cannot be used with xpub. Remove the ' suffix.";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Generates a preview of multiple addresses from an xpub
+    /// </summary>
+    public static List<(uint Index, string Address)> PreviewAddresses(
+        string xpub,
+        uint startIndex,
+        int count,
+        Network network,
+        string? derivationPath = null)
+    {
+        // Guard against negative count causing uint overflow in loop comparison
+        if (count <= 0)
+            return new List<(uint Index, string Address)>();
+
+        var addresses = new List<(uint Index, string Address)>();
+
+        for (uint i = 0; i < count; i++)
+        {
+            var index = startIndex + i;
+            var address = DeriveAddressFromXpub(xpub, index, network, derivationPath);
+            addresses.Add((index, address));
+        }
+
+        return addresses;
     }
 
     /// <summary>

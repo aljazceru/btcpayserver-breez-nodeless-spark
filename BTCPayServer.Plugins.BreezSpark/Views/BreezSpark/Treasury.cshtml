@@ -115,15 +115,57 @@
                 <div id="xpubOptions" style="display: @(Model.Settings.OnChainAddressType == OnChainAddressType.Xpub ? "block" : "none");">
                     <div class="form-group">
                         <label asp-for="Settings.Xpub" class="form-label">Extended Public Key</label>
-                        <input asp-for="Settings.Xpub" class="form-control" placeholder="xpub..." />
+                        <input asp-for="Settings.Xpub" class="form-control" placeholder="xpub..." id="xpubInput" />
                         <span asp-validation-for="Settings.Xpub" class="text-danger"></span>
-                        <span class="text-muted">Each sweep will use a new derived address (m/0/index).</span>
+                        <span class="text-muted">The extended public key from your wallet.</span>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group mt-3">
+                        <label asp-for="Settings.XpubDerivationPath" class="form-label">Derivation Path</label>
+                        <input asp-for="Settings.XpubDerivationPath" class="form-control" placeholder="0/{index}" id="derivationPathInput" />
+                        <span asp-validation-for="Settings.XpubDerivationPath" class="text-danger"></span>
+                        <span class="text-muted">
+                            Path relative to the xpub. Use <code>{index}</code> as the placeholder for the address index.<br/>
+                            Examples: <code>0/{index}</code> (default), <code>0/0/{index}</code>, <code>1/{index}</code> (change addresses)
+                        </span>
+                    </div>
+                    <div class="form-group mt-3">
                         <label class="form-label">Current Derivation Index</label>
-                        <input type="text" class="form-control" value="@Model.Settings.XpubDerivationIndex" readonly />
-                        <span class="text-muted">Auto-increments after each successful sweep.</span>
-                        <input type="hidden" asp-for="Settings.XpubDerivationIndex" />
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="derivationIndexInput" value="@Model.Settings.XpubDerivationIndex" min="0" />
+                            <button type="button" class="btn btn-outline-secondary" id="previewAddressesBtn">Preview Addresses</button>
+                        </div>
+                        <span class="text-muted">The next sweep will use this index. Auto-increments after each successful sweep.</span>
+                        <input type="hidden" asp-for="Settings.XpubDerivationIndex" id="hiddenDerivationIndex" />
+                    </div>
+
+                    <div id="addressPreviewContainer" class="mt-3" style="display: none;">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <span>Address Preview</span>
+                                <button type="button" class="btn-close" id="closePreviewBtn" aria-label="Close"></button>
+                            </div>
+                            <div class="card-body">
+                                <div id="previewLoading" style="display: none;">
+                                    <span class="spinner-border spinner-border-sm" role="status"></span>
+                                    Generating addresses...
+                                </div>
+                                <div id="previewError" class="alert alert-danger" style="display: none;"></div>
+                                <table id="previewTable" class="table table-sm" style="display: none;">
+                                    <thead>
+                                        <tr>
+                                            <th>Index</th>
+                                            <th>Path</th>
+                                            <th>Address</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="previewTableBody">
+                                    </tbody>
+                                </table>
+                                <div class="text-muted small mt-2">
+                                    Verify these addresses match your wallet before saving settings.
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -185,6 +227,19 @@
         const singleAddressOptions = document.getElementById('singleAddressOptions');
         const xpubOptions = document.getElementById('xpubOptions');
 
+        // Address preview elements
+        const previewBtn = document.getElementById('previewAddressesBtn');
+        const closePreviewBtn = document.getElementById('closePreviewBtn');
+        const previewContainer = document.getElementById('addressPreviewContainer');
+        const previewLoading = document.getElementById('previewLoading');
+        const previewError = document.getElementById('previewError');
+        const previewTable = document.getElementById('previewTable');
+        const previewTableBody = document.getElementById('previewTableBody');
+        const xpubInput = document.getElementById('xpubInput');
+        const derivationPathInput = document.getElementById('derivationPathInput');
+        const derivationIndexInput = document.getElementById('derivationIndexInput');
+        const hiddenDerivationIndex = document.getElementById('hiddenDerivationIndex');
+
         function updateModeVisibility() {
             if (modeOnChain.checked) {
                 onchainOptions.style.display = 'block';
@@ -204,6 +259,72 @@
                 xpubOptions.style.display = 'block';
             }
         }
+
+        // Sync visible index input with hidden field
+        derivationIndexInput.addEventListener('change', function() {
+            hiddenDerivationIndex.value = this.value;
+        });
+
+        // Preview addresses functionality
+        async function previewAddresses() {
+            const xpub = xpubInput.value.trim();
+            const derivationPath = derivationPathInput.value.trim() || '0/{index}';
+            const startIndex = parseInt(derivationIndexInput.value) || 0;
+
+            if (!xpub) {
+                alert('Please enter an extended public key first.');
+                return;
+            }
+
+            // Show loading state
+            previewContainer.style.display = 'block';
+            previewLoading.style.display = 'block';
+            previewError.style.display = 'none';
+            previewTable.style.display = 'none';
+
+            try {
+                const formData = new FormData();
+                formData.append('xpub', xpub);
+                formData.append('derivationPath', derivationPath);
+                formData.append('startIndex', startIndex.toString());
+                formData.append('count', '5');
+
+                const response = await fetch('@Url.Action("TreasuryPreviewAddresses", "BreezSpark", new { storeId = Model.StoreId })', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                previewLoading.style.display = 'none';
+
+                if (result.success) {
+                    previewTableBody.innerHTML = '';
+                    result.addresses.forEach(function(addr) {
+                        const row = document.createElement('tr');
+                        row.innerHTML =
+                            '<td>' + addr.index + '</td>' +
+                            '<td><code>' + addr.path + '</code></td>' +
+                            '<td><code style="font-size: 0.85em; word-break: break-all;">' + addr.address + '</code></td>';
+                        previewTableBody.appendChild(row);
+                    });
+                    previewTable.style.display = 'table';
+                } else {
+                    previewError.textContent = result.error || 'Failed to generate addresses';
+                    previewError.style.display = 'block';
+                }
+            } catch (error) {
+                previewLoading.style.display = 'none';
+                previewError.textContent = 'Error: ' + error.message;
+                previewError.style.display = 'block';
+            }
+        }
+
+        previewBtn.addEventListener('click', previewAddresses);
+
+        closePreviewBtn.addEventListener('click', function() {
+            previewContainer.style.display = 'none';
+        });
 
         modeOnChain.addEventListener('change', updateModeVisibility);
         modeLightning.addEventListener('change', updateModeVisibility);

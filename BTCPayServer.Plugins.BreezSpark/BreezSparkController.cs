@@ -567,6 +567,11 @@ public class BreezSparkController : Controller
                     {
                         ModelState.AddModelError("Settings.Xpub", "Invalid extended public key");
                     }
+
+                    if (!TreasuryHelper.ValidateDerivationPath(settings.XpubDerivationPath, out var pathError))
+                    {
+                        ModelState.AddModelError("Settings.XpubDerivationPath", pathError ?? "Invalid derivation path");
+                    }
                 }
             }
             else if (settings.Mode == TreasuryMode.Lightning)
@@ -673,6 +678,61 @@ public class BreezSparkController : Controller
         }
 
         return RedirectToAction(nameof(Treasury), new {storeId});
+    }
+
+    [HttpPost("treasury/preview-addresses")]
+    [Authorize(Policy = Policies.CanModifyStoreSettings, AuthenticationSchemes = AuthenticationSchemes.Cookie)]
+    public async Task<IActionResult> TreasuryPreviewAddresses(string storeId, string? xpub, string? derivationPath, uint? startIndex, int? count)
+    {
+        var client = _breezService.GetClient(storeId);
+        if (client is null)
+        {
+            return Json(new { success = false, error = "Breez client not configured" });
+        }
+
+        if (string.IsNullOrWhiteSpace(xpub))
+        {
+            return Json(new { success = false, error = "Extended public key is required" });
+        }
+
+        if (!TreasuryHelper.ValidateXpub(xpub, NBitcoin.Network.Main))
+        {
+            return Json(new { success = false, error = "Invalid extended public key" });
+        }
+
+        if (!TreasuryHelper.ValidateDerivationPath(derivationPath, out var pathError))
+        {
+            return Json(new { success = false, error = pathError ?? "Invalid derivation path" });
+        }
+
+        try
+        {
+            var start = startIndex ?? 0;
+            var addressCount = Math.Max(1, Math.Min(count ?? 5, 20)); // Clamp to [1, 20] addresses
+
+            var addresses = TreasuryHelper.PreviewAddresses(
+                xpub,
+                start,
+                addressCount,
+                NBitcoin.Network.Main,
+                derivationPath);
+
+            return Json(new
+            {
+                success = true,
+                addresses = addresses.Select(a => new
+                {
+                    index = a.Index,
+                    address = a.Address,
+                    path = (derivationPath ?? "0/{index}").Replace("{index}", a.Index.ToString())
+                })
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating preview addresses for store {StoreId}", storeId);
+            return Json(new { success = false, error = ex.Message });
+        }
     }
 
     [Route("transactions")]

@@ -82,6 +82,14 @@ public class TreasurySettings
     public uint XpubDerivationIndex { get; set; } = 0;
 
     /// <summary>
+    /// Custom derivation path for xpub address generation.
+    /// Use {index} as placeholder for the derivation index.
+    /// Example: "m/84'/0'/0'/0/{index}" or "0/{index}" (relative to xpub)
+    /// Default: "0/{index}" (standard receiving address path)
+    /// </summary>
+    public string XpubDerivationPath { get; set; } = "0/{index}";
+
+    /// <summary>
     /// Fee speed for on-chain transactions
     /// </summary>
     public OnchainFeeSpeed OnchainFeeSpeed { get; set; } = OnchainFeeSpeed.Medium;
