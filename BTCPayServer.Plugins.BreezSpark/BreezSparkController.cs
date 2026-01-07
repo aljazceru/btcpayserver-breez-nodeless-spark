@@ -172,7 +172,8 @@ public class BreezSparkController : Controller
 
             var paymentMethod = new ReceivePaymentMethod.Bolt11Invoice(
                 description: description,
-                amountSats: amount != null ? (ulong)amount.Value : null
+                amountSats: amount != null ? (ulong)amount.Value : null,
+                expirySecs: 3600  // 1 hour default expiry
             );
 
             var request = new ReceivePaymentRequest(paymentMethod: paymentMethod);

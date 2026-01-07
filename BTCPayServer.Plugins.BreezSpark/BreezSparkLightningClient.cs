@@ -162,7 +162,8 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
     {
         var descriptionToUse = description ?? "Invoice";
         var amountSats = (ulong)amount.ToUnit(LightMoneyUnit.Satoshi);
-        var paymentMethod = new ReceivePaymentMethod.Bolt11Invoice(descriptionToUse, amountSats);
+        var expirySecs = (uint)expiry.TotalSeconds;
+        var paymentMethod = new ReceivePaymentMethod.Bolt11Invoice(descriptionToUse, amountSats, expirySecs);
         var response = await _sdk.ReceivePayment(new ReceivePaymentRequest(paymentMethod));
         DebugLogObject("ReceivePaymentResponse(CreateInvoice)", response);
         return FromReceivePaymentResponse(response, amount);
@@ -173,7 +174,8 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
     {
         var description = createInvoiceRequest.Description ?? createInvoiceRequest.DescriptionHash?.ToString() ?? "Invoice";
         var amountSats = (ulong)createInvoiceRequest.Amount.ToUnit(LightMoneyUnit.Satoshi);
-        var paymentMethod = new ReceivePaymentMethod.Bolt11Invoice(description, amountSats);
+        var expirySecs = (uint)createInvoiceRequest.Expiry.TotalSeconds;
+        var paymentMethod = new ReceivePaymentMethod.Bolt11Invoice(description, amountSats, expirySecs);
         var response = await _sdk.ReceivePayment(new ReceivePaymentRequest(paymentMethod));
         DebugLogObject("ReceivePaymentResponse(CreateInvoiceParams)", response);
         return FromReceivePaymentResponse(response, createInvoiceRequest.Amount);
@@ -837,7 +839,8 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
     {
         var description = createInvoiceRequest.Description ?? createInvoiceRequest.DescriptionHash?.ToString() ?? "Invoice";
         var amountSats = (ulong)createInvoiceRequest.Amount.ToUnit(LightMoneyUnit.Satoshi);
-        var paymentMethod = new ReceivePaymentMethod.Bolt11Invoice(description, amountSats);
+        var expirySecs = (uint)createInvoiceRequest.Expiry.TotalSeconds;
+        var paymentMethod = new ReceivePaymentMethod.Bolt11Invoice(description, amountSats, expirySecs);
         var response = await _sdk.ReceivePayment(new ReceivePaymentRequest(paymentMethod));
         var feeSats = (long)response.fee;
         var invoice = FromReceivePaymentResponse(response, createInvoiceRequest.Amount);

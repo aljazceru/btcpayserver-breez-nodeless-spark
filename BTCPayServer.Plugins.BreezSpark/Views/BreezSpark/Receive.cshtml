@@ -1,5 +1,4 @@
-﻿@using BTCPayServer.Lightning
-@using BTCPayServer.Models.StoreViewModels
+﻿@using BTCPayServer.Models.StoreViewModels
 @using BTCPayServer.Plugins.BreezSpark
 @using BTCPayServer.Security
 @inject BreezSparkService BreezService
@@ -15,24 +14,6 @@
     var sdk = BreezService.GetClient(storeId)?.Sdk;
     if (sdk is null)
         return;
-
-    var nodeInfo = new Breez.Sdk.Spark.GetInfoRequest(ensureSynced: false);
-    Breez.Sdk.Spark.GetInfoResponse? infoResponse = null;
-    try
-    {
-        infoResponse = await sdk.GetInfo(nodeInfo);
-    }
-    catch (Exception ex)
-    {
-        <div class="alert alert-danger" role="alert">
-            <h5 class="alert-heading">Error</h5>
-            <p class="mb-0">Unable to fetch node information: @ex.Message</p>
-        </div>
-        return;
-    }
-
-    var max = LightMoney.Satoshis((long)(infoResponse?.balanceSats ?? 0));
-
 }
 
 
@@ -51,8 +32,8 @@
             <div asp-validation-summary="ModelOnly" class="text-danger"></div>
             <div class="form-group">
                 <label for="amount" class="form-label">Amount (sats)</label>
-                <input type="number" id="amount" min="1" max="@max.ToUnit(LightMoneyUnit.Satoshi)" name="amount" class="form-control" placeholder="Optional: leave empty for amountless invoice"/>
-                <small class="form-text text-muted">Maximum receivable: @max.ToUnit(LightMoneyUnit.Satoshi) sats</small>
+                <input type="number" id="amount" min="1" name="amount" class="form-control" placeholder="Optional: leave empty for amountless invoice"/>
+                <small class="form-text text-muted">Leave empty for an amountless invoice</small>
             </div>
             <div class="form-group">
                 <label for="description" class="form-label">Description</label>
