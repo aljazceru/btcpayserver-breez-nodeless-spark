@@ -50,6 +50,9 @@
         <li class="nav-item nav-item-sub">
             <a permission="@Policies.CanModifyStoreSettings" asp-action="Configure" asp-route-storeId="@storeId" class="nav-link @ViewData.ActivePageClass("BreezSpark", null, "Configure")">Configuration</a>
         </li>
+        <li class="nav-item nav-item-sub">
+            <a permission="@Policies.CanModifyStoreSettings" asp-action="Treasury" asp-route-storeId="@storeId" class="nav-link @ViewData.ActivePageClass("BreezSpark", null, "Treasury")">Treasury</a>
+        </li>
         @if (client?.Events?.Any() == true)
         {
             <li class="nav-item nav-item-sub">

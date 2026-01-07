@@ -162,7 +162,8 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
     {
         var descriptionToUse = description ?? "Invoice";
         var amountSats = (ulong)amount.ToUnit(LightMoneyUnit.Satoshi);
-        var paymentMethod = new ReceivePaymentMethod.Bolt11Invoice(descriptionToUse, amountSats);
+        var expirySecs = (uint)expiry.TotalSeconds;
+        var paymentMethod = new ReceivePaymentMethod.Bolt11Invoice(descriptionToUse, amountSats, expirySecs);
         var response = await _sdk.ReceivePayment(new ReceivePaymentRequest(paymentMethod));
         DebugLogObject("ReceivePaymentResponse(CreateInvoice)", response);
         return FromReceivePaymentResponse(response, amount);
@@ -173,7 +174,8 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
     {
         var description = createInvoiceRequest.Description ?? createInvoiceRequest.DescriptionHash?.ToString() ?? "Invoice";
         var amountSats = (ulong)createInvoiceRequest.Amount.ToUnit(LightMoneyUnit.Satoshi);
-        var paymentMethod = new ReceivePaymentMethod.Bolt11Invoice(description, amountSats);
+        var expirySecs = (uint)createInvoiceRequest.Expiry.TotalSeconds;
+        var paymentMethod = new ReceivePaymentMethod.Bolt11Invoice(description, amountSats, expirySecs);
         var response = await _sdk.ReceivePayment(new ReceivePaymentRequest(paymentMethod));
         DebugLogObject("ReceivePaymentResponse(CreateInvoiceParams)", response);
         return FromReceivePaymentResponse(response, createInvoiceRequest.Amount);
@@ -186,25 +188,12 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
 
     public async Task<LightningNodeInformation> GetInfo(CancellationToken cancellation = default)
     {
-        try
-        {
-            var response = await _sdk.GetInfo(new GetInfoRequest(ensureSynced: false));
-
-            return new LightningNodeInformation()
-            {
-                Alias = "BreezSpark (nodeless)",
-                BlockHeight = 0, // Spark SDK doesn't expose block height
-                Version = "0.4.1" // SDK version hardcoded since property not found
-            };
-        }
-        catch
-        {
-            return new LightningNodeInformation()
-            {
-                Alias = "BreezSpark (nodeless)",
-                BlockHeight = 0
-            };
-        }
+        // Breez Spark is a nodeless wallet (similar to LNDhub/LNbits) that doesn't expose
+        // block height information. Throwing NotSupportedException tells BTCPayServer to
+        // skip the block sync check, which would otherwise fail because the SDK returns
+        // no block height and BTCPayServer would compare 0 against the chain height.
+        // This is the same pattern used by LNDhub and LNbits implementations.
+        throw new NotSupportedException("Breez Spark is a nodeless wallet that does not expose node information");
     }
 
     public async Task<LightningNodeBalance> GetBalance(CancellationToken cancellation = default)
@@ -608,6 +597,26 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
         return null;
     }
 
+    private string? ExtractDescriptionFromBolt11(string? bolt11)
+    {
+        if (string.IsNullOrEmpty(bolt11))
+            return null;
+
+        try
+        {
+            if (BOLT11PaymentRequest.TryParse(bolt11, out var pr, _network))
+            {
+                return pr.ShortDescription;
+            }
+        }
+        catch
+        {
+            // Ignore parse errors and return null
+        }
+
+        return null;
+    }
+
     private LightMoney GetFeeFromPayment(Payment payment)
     {
         return payment.fees % 1000 == 0
@@ -697,7 +706,7 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
             Timestamp = payment.timestamp,
             Amount = amount,
             Fee = fee,
-            Description = description ?? bolt11
+            Description = description ?? ExtractDescriptionFromBolt11(bolt11) ?? ""
         };
     }
 
@@ -830,7 +839,8 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
     {
         var description = createInvoiceRequest.Description ?? createInvoiceRequest.DescriptionHash?.ToString() ?? "Invoice";
         var amountSats = (ulong)createInvoiceRequest.Amount.ToUnit(LightMoneyUnit.Satoshi);
-        var paymentMethod = new ReceivePaymentMethod.Bolt11Invoice(description, amountSats);
+        var expirySecs = (uint)createInvoiceRequest.Expiry.TotalSeconds;
+        var paymentMethod = new ReceivePaymentMethod.Bolt11Invoice(description, amountSats, expirySecs);
         var response = await _sdk.ReceivePayment(new ReceivePaymentRequest(paymentMethod));
         var feeSats = (long)response.fee;
         var invoice = FromReceivePaymentResponse(response, createInvoiceRequest.Amount);

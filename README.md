@@ -4,18 +4,17 @@ A BTCPayServer plugin that enables Lightning payments using Breez's nodeless SDK
 
 ## Overview
 
-This plugin allows BTCPayServer merchants to accept Lightning payments through Breez's non-custodial, nodeless Lightning infrastructure. Instead of maintaining a Lightning node with liquidity and channel management, merchants can use Spark based.
+This plugin allows BTCPayServer merchants to accept Lightning payments through Breez's non-custodial, nodeless Lightning infrastructure. Instead of maintaining a Lightning node with liquidity and channel management, merchants can use Spark based Lightning node backend. 
 
 ## Features
 
-- **Nodeless Lightning**: No need to run or maintain a Lightning node, instead use Spark based swaps 
+- **Nodeless Lightning**: No need to run or maintain a Lightning node and deal with liquidity issues
+- **Treasury management**: Automatically sweep funds to L1 or lightning address based on your configuration
 - **Non-custodial**: You maintain control over your funds (on Spark)
+- 
 
-## How It Works
-
-1. **Invoice Creation**: When creating a Lightning invoice in BTCPayServer, the plugin uses Breez SDK to generate a BOLT11 invoice
-2. **Payment Detection**: A background service monitors for payment events through the Breez SDK
-3. **Status Updates**: Detected payments are automatically reported back to BTCPayServer, updating invoice status from "new" to "paid"
+## Treasury
+![](./docs/1.png)
 
 ## Installation
 

@@ -1,0 +1,115 @@
+@using BTCPayServer
+@using BTCPayServer.Abstractions.Extensions
+@using BTCPayServer.Plugins.BreezSpark
+@model BTCPayServer.Plugins.BreezSpark.TreasuryHistoryViewModel
+@{
+    ViewData.SetActivePage("BreezSpark", "Treasury", "TreasuryHistory");
+    var storeId = Context.GetCurrentStoreId();
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+            <h3 class="mb-0">
+                <span>Treasury Sweep History</span>
+            </h3>
+            <div class="d-flex gap-3 mt-3 mt-sm-0">
+                <a asp-action="Treasury" asp-route-storeId="@storeId" class="btn btn-secondary">Back to Settings</a>
+            </div>
+        </div>
+
+        @if (Model.Sweeps.Count == 0)
+        {
+            <div class="alert alert-info">
+                No sweep history yet.
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Amount</th>
+                            <th>Fee</th>
+                            <th>Mode</th>
+                            <th>Destination</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var sweep in Model.Sweeps)
+                        {
+                            <tr>
+                                <td>@sweep.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                <td>@sweep.AmountSats.ToString("N0") sats</td>
+                                <td>@sweep.FeeSats.ToString("N0") sats</td>
+                                <td>
+                                    @if (sweep.Mode == TreasuryMode.OnChain)
+                                    {
+                                        <span class="badge bg-warning text-dark">On-Chain</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-info">Lightning</span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="text-truncate d-inline-block" style="max-width: 200px;" title="@sweep.Destination">
+                                        @sweep.Destination
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (sweep.Status == TreasurySweepStatus.Completed)
+                                    {
+                                        <span class="badge bg-success">Completed</span>
+                                    }
+                                    else if (sweep.Status == TreasurySweepStatus.Pending)
+                                    {
+                                        <span class="badge bg-secondary">Pending</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger" title="@sweep.ErrorMessage">Failed</span>
+                                    }
+                                </td>
+                            </tr>
+                            @if (sweep.Status == TreasurySweepStatus.Failed && !string.IsNullOrEmpty(sweep.ErrorMessage))
+                            {
+                                <tr class="table-warning">
+                                    <td colspan="6" class="small text-danger">
+                                        Error: @sweep.ErrorMessage
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (Model.Total > Model.Count)
+            {
+                <nav aria-label="Page navigation">
+                    <ul class="pagination">
+                        @if (Model.Skip > 0)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" asp-action="TreasuryHistory" asp-route-storeId="@storeId" asp-route-skip="@Math.Max(0, Model.Skip - Model.Count)" asp-route-count="@Model.Count">Previous</a>
+                            </li>
+                        }
+                        <li class="page-item disabled">
+                            <span class="page-link">@(Model.Skip / Model.Count + 1) / @((Model.Total + Model.Count - 1) / Model.Count)</span>
+                        </li>
+                        @if (Model.Skip + Model.Count < Model.Total)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" asp-action="TreasuryHistory" asp-route-storeId="@storeId" asp-route-skip="@(Model.Skip + Model.Count)" asp-route-count="@Model.Count">Next</a>
+                            </li>
+                        }
+                    </ul>
+                </nav>
+            }
+        }
+    </div>
+</div>

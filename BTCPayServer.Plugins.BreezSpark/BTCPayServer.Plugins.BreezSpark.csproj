@@ -12,7 +12,7 @@
     <PropertyGroup>
         <Product>BreezSpark Lightning Plugin</Product>
         <Description>Nodeless Lightning payments powered by Breez Nodeless SDK (Spark)</Description>
-        <Version>0.0.4</Version>
+        <Version>0.0.5</Version>
         <Author>Aljaz Ceru</Author>
         <Company>Aljaz Ceru</Company>
         <AssemblyName>BTCPayServer.Plugins.BreezSpark</AssemblyName>
@@ -46,7 +46,7 @@
         <None Include="csharp\**\*" />
     </ItemGroup>
     <ItemGroup>
-      <PackageReference Include="Breez.Sdk.Spark" Version="0.4.1" />
+      <PackageReference Include="Breez.Sdk.Spark" Version="0.6.6" />
       <PackageReference Include="System.Numerics.Vectors" Version="4.5.0" />
     </ItemGroup>
 </Project>

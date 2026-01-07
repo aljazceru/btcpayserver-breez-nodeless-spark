@@ -26,6 +26,10 @@ namespace BTCPayServer.Plugins.BreezSpark
         {
             applicationBuilder.AddSingleton<BreezSparkService>();
             applicationBuilder.AddSingleton<IHostedService>(provider => provider.GetRequiredService<BreezSparkService>());
+
+            // Register HttpClient for treasury LNURL resolution
+            applicationBuilder.AddHttpClient("TreasuryLnurl");
+
             applicationBuilder.AddSingleton<BreezSparkLightningConnectionStringHandler>();
             applicationBuilder.AddSingleton<ILightningConnectionStringHandler>(provider => provider.GetRequiredService<BreezSparkLightningConnectionStringHandler>());
 
