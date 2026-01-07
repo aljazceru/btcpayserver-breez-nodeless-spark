@@ -11,7 +11,6 @@ This plugin allows BTCPayServer merchants to accept Lightning payments through B
 - **Nodeless Lightning**: No need to run or maintain a Lightning node and deal with liquidity issues
 - **Treasury management**: Automatically sweep funds to L1 or lightning address based on your configuration
 - **Non-custodial**: You maintain control over your funds (on Spark)
-- 
 
 ## Treasury
 ![](./docs/1.png)
