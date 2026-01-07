@@ -21,16 +21,9 @@ Download and install the plugin from the GitHub releases:
 https://github.com/aljazceru/btcpayserver-breez-nodeless-plugin/releases
 
 
-## Configuration
-
-Connect your BTCPayServer instance to Breez using a connection string:
-```
-type=breez;key=<your_payment_key>
-```
-
 ## Requirements
 
-- BTCPayServer instance
-- BreezSDK API key
+- [BTCPayServer](https://github.com/btcpayserver/btcpayserver-docker)
+- [BreezSDK API key](https://breez.technology/request-api-key/#contact-us-form-sdk)
 
 
