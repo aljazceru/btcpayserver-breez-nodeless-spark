@@ -26,11 +26,31 @@
 
             <div class="form-group">
                 <label asp-for="Mnemonic" class="form-label">Mnemonic</label>
-                <input value="@Model?.Mnemonic" asp-for="Mnemonic" class="form-control" type="password" disabled="@active"/>
+                <div class="input-group">
+                    <input value="@Model?.Mnemonic" asp-for="Mnemonic" class="form-control" type="password"
+                           placeholder="word1 word2 word3 ... word12" disabled="@active" id="mnemonic-input"/>
+                    <button class="btn btn-outline-secondary" type="button" id="mnemonic-toggle"
+                            title="Show/hide mnemonic" @(active ? "disabled" : "")>
+                        <span id="mnemonic-toggle-icon">Show</span>
+                    </button>
+                </div>
                 <span asp-validation-for="Mnemonic" class="text-danger"></span>
-                <span class="text-muted">A Bitcoin 12-word mnemonic seed phrase.<strong>BACK THIS UP SAFELY! GENERATE IT RANDOMLY! SERVER ADMINS HAVE ACCESS TO THIS!</strong></span>
-
+                <span class="text-muted d-block mt-1">12 or 24 words separated by single spaces.</span>
+                <span class="text-warning d-block mt-1"><strong>BACK THIS UP SAFELY! GENERATE IT RANDOMLY! SERVER ADMINS HAVE ACCESS TO THIS!</strong></span>
             </div>
+            <script>
+                document.getElementById('mnemonic-toggle')?.addEventListener('click', function () {
+                    var input = document.getElementById('mnemonic-input');
+                    var icon = document.getElementById('mnemonic-toggle-icon');
+                    if (input.type === 'password') {
+                        input.type = 'text';
+                        icon.textContent = 'Hide';
+                    } else {
+                        input.type = 'password';
+                        icon.textContent = 'Show';
+                    }
+                });
+            </script>
             <div class="form-group">
                 <label asp-for="ApiKey" class="form-label">Breez API Key</label>
                 <input asp-for="ApiKey" class="form-control" placeholder="Defaults to public key if left empty"/>

@@ -124,7 +124,7 @@ public class BreezSparkController : Controller
         }
         catch (Exception e)
         {
-            TempData[WellKnownTempData.ErrorMessage] = $"error claiming deposits: {e.Message}";
+            TempData[WellKnownTempData.ErrorMessage] = FriendlyError("Claiming deposits", e);
         }
 
         return View((object) storeId);
@@ -173,7 +173,8 @@ public class BreezSparkController : Controller
             var paymentMethod = new ReceivePaymentMethod.Bolt11Invoice(
                 description: description,
                 amountSats: amount != null ? (ulong)amount.Value : null,
-                expirySecs: 3600  // 1 hour default expiry
+                expirySecs: 3600,  // 1 hour default expiry
+                paymentHash: null
             );
 
             var request = new ReceivePaymentRequest(paymentMethod: paymentMethod);
@@ -186,7 +187,7 @@ public class BreezSparkController : Controller
         }
         catch (Exception ex)
         {
-            TempData[WellKnownTempData.ErrorMessage] = $"Error creating invoice: {ex.Message}";
+            TempData[WellKnownTempData.ErrorMessage] = FriendlyError("Creating invoice", ex);
             return View((object) storeId);
         }
     }
@@ -249,7 +250,7 @@ public class BreezSparkController : Controller
         }
         catch (Exception ex)
         {
-            TempData[WellKnownTempData.ErrorMessage] = $"Error preparing payment: {ex.Message}";
+            TempData[WellKnownTempData.ErrorMessage] = FriendlyError("Preparing payment", ex);
         }
 
         return View(nameof(Send), storeId);
@@ -303,7 +304,7 @@ public class BreezSparkController : Controller
         }
         catch (Exception ex)
         {
-            TempData[WellKnownTempData.ErrorMessage] = $"Error sending payment: {ex.Message}";
+            TempData[WellKnownTempData.ErrorMessage] = FriendlyError("Sending payment", ex);
             _logger.LogError(ex, "BreezSpark send failed for store {StoreId}", storeId);
             return RedirectToAction(nameof(Send), new {storeId});
         }
@@ -361,12 +362,12 @@ public class BreezSparkController : Controller
             }
             else
             {
-                TempData[WellKnownTempData.ErrorMessage] = "Invalid payment method for onchain swap";
+                TempData[WellKnownTempData.ErrorMessage] = "This address could not be processed as an on-chain payment. Verify it is a valid Bitcoin address.";
             }
         }
         catch (Exception ex)
         {
-            TempData[WellKnownTempData.ErrorMessage] = $"Error processing swap-out: {ex.Message}";
+            TempData[WellKnownTempData.ErrorMessage] = FriendlyError("Processing swap-out", ex);
         }
 
         return RedirectToAction(nameof(SwapOut), new {storeId});
@@ -411,7 +412,7 @@ public class BreezSparkController : Controller
         }
         catch (Exception e)
         {
-            TempData[WellKnownTempData.ErrorMessage] = $"Couldnt refund: {e.Message}";
+            TempData[WellKnownTempData.ErrorMessage] = FriendlyError("Processing refund", e);
         }
 
         return RedirectToAction(nameof(SwapIn), new {storeId});
@@ -452,6 +453,19 @@ public class BreezSparkController : Controller
                 if (string.IsNullOrEmpty(settings.Mnemonic))
                 {
                     ModelState.AddModelError(nameof(settings.Mnemonic), "Mnemonic is required");
+                    settings.Mnemonic = string.Empty;
+                    return View(settings);
+                }
+
+                // Normalize whitespace: trim and collapse multiple spaces
+                settings.Mnemonic = System.Text.RegularExpressions.Regex.Replace(settings.Mnemonic.Trim(), @"\s+", " ");
+
+                var words = settings.Mnemonic.Split(' ');
+                if (words.Length != 12 && words.Length != 24)
+                {
+                    ModelState.AddModelError(nameof(settings.Mnemonic),
+                        $"Mnemonic must be 12 or 24 words (you entered {words.Length})");
+                    settings.Mnemonic = string.Empty;
                     return View(settings);
                 }
 
@@ -461,7 +475,20 @@ public class BreezSparkController : Controller
                 }
                 catch (Exception)
                 {
-                    ModelState.AddModelError(nameof(settings.Mnemonic), "Invalid mnemonic");
+                    // Try to identify the specific invalid word
+                    var wordlist = NBitcoin.Wordlist.English;
+                    var invalidWord = words.FirstOrDefault(w => !wordlist.WordExists(w, out _));
+                    if (invalidWord != null)
+                    {
+                        ModelState.AddModelError(nameof(settings.Mnemonic),
+                            $"Word '{invalidWord}' is not a valid BIP39 word");
+                    }
+                    else
+                    {
+                        ModelState.AddModelError(nameof(settings.Mnemonic),
+                            "Invalid mnemonic: the word combination is not valid (bad checksum)");
+                    }
+                    settings.Mnemonic = string.Empty;
                     return View(settings);
                 }
 
@@ -469,7 +496,8 @@ public class BreezSparkController : Controller
             }
             catch (Exception e)
             {
-                TempData[WellKnownTempData.ErrorMessage] = $"Couldnt use provided settings: {e.Message}";
+                TempData[WellKnownTempData.ErrorMessage] = FriendlyError("Applying settings", e);
+                settings.Mnemonic = string.Empty;
                 return View(settings);
             }
 
@@ -675,7 +703,7 @@ public class BreezSparkController : Controller
         }
         catch (Exception ex)
         {
-            TempData[WellKnownTempData.ErrorMessage] = $"Test sweep error: {ex.Message}";
+            TempData[WellKnownTempData.ErrorMessage] = FriendlyError("Test sweep", ex);
             _logger.LogError(ex, "Treasury test sweep failed for store {StoreId}", storeId);
         }
 
@@ -728,7 +756,7 @@ public class BreezSparkController : Controller
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error generating preview addresses for store {StoreId}", storeId);
-            return Json(new { success = false, error = ex.Message });
+            return Json(new { success = false, error = FriendlyError("Generating addresses", ex) });
         }
     }
 
@@ -804,6 +832,41 @@ public class BreezSparkController : Controller
         viewModel.Payments = normalized;
 
         return View("Transactions", viewModel);
+    }
+
+    private string FriendlyError(string context, Exception ex)
+    {
+        _logger.LogError(ex, "BreezSpark error during: {Context}", context);
+
+        var msg = ex.Message ?? string.Empty;
+
+        if (msg.Contains("Invalid certificate", StringComparison.OrdinalIgnoreCase) ||
+            msg.Contains("Breez API key", StringComparison.OrdinalIgnoreCase))
+            return "Invalid or expired Breez API key. Check your key or leave blank for the default.";
+
+        if (msg.Contains("insufficient funds", StringComparison.OrdinalIgnoreCase))
+            return "Insufficient funds for this operation.";
+
+        if (msg.Contains("invoice expired", StringComparison.OrdinalIgnoreCase) ||
+            msg.Contains("invoice is expired", StringComparison.OrdinalIgnoreCase))
+            return "The invoice has expired. Please create a new one.";
+
+        if (msg.Contains("payment timeout", StringComparison.OrdinalIgnoreCase))
+            return "Payment timed out. The recipient may be offline.";
+
+        if (msg.Contains("route not found", StringComparison.OrdinalIgnoreCase) ||
+            msg.Contains("no route", StringComparison.OrdinalIgnoreCase))
+            return "No payment route found. The recipient may not have enough inbound capacity.";
+
+        if (msg.Contains("amount too low", StringComparison.OrdinalIgnoreCase) ||
+            msg.Contains("below minimum", StringComparison.OrdinalIgnoreCase))
+            return "Amount is too low for this payment type.";
+
+        if (msg.Contains("amount too high", StringComparison.OrdinalIgnoreCase) ||
+            msg.Contains("above maximum", StringComparison.OrdinalIgnoreCase))
+            return "Amount exceeds the maximum for this payment type.";
+
+        return $"{context} failed. Please try again or check the logs for details.";
     }
 
     private BigInteger? ResolveAmountSats(string paymentRequest, long? amount)

@@ -163,7 +163,7 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
         var descriptionToUse = description ?? "Invoice";
         var amountSats = (ulong)amount.ToUnit(LightMoneyUnit.Satoshi);
         var expirySecs = (uint)expiry.TotalSeconds;
-        var paymentMethod = new ReceivePaymentMethod.Bolt11Invoice(descriptionToUse, amountSats, expirySecs);
+        var paymentMethod = new ReceivePaymentMethod.Bolt11Invoice(descriptionToUse, amountSats, expirySecs, null);
         var response = await _sdk.ReceivePayment(new ReceivePaymentRequest(paymentMethod));
         DebugLogObject("ReceivePaymentResponse(CreateInvoice)", response);
         return FromReceivePaymentResponse(response, amount);
@@ -175,7 +175,7 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
         var description = createInvoiceRequest.Description ?? createInvoiceRequest.DescriptionHash?.ToString() ?? "Invoice";
         var amountSats = (ulong)createInvoiceRequest.Amount.ToUnit(LightMoneyUnit.Satoshi);
         var expirySecs = (uint)createInvoiceRequest.Expiry.TotalSeconds;
-        var paymentMethod = new ReceivePaymentMethod.Bolt11Invoice(description, amountSats, expirySecs);
+        var paymentMethod = new ReceivePaymentMethod.Bolt11Invoice(description, amountSats, expirySecs, null);
         var response = await _sdk.ReceivePayment(new ReceivePaymentRequest(paymentMethod));
         DebugLogObject("ReceivePaymentResponse(CreateInvoiceParams)", response);
         return FromReceivePaymentResponse(response, createInvoiceRequest.Amount);
@@ -289,7 +289,7 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
             }
             else
             {
-                return new PayResponse(PayResult.Error, "Invalid payment method");
+                return new PayResponse(PayResult.Error, "Unsupported payment type. Only BOLT11 Lightning invoices can be paid through this interface.");
             }
         }
         catch (Exception e)
@@ -442,7 +442,7 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
 
         if (payment.details is PaymentDetails.Lightning lightningDetails)
         {
-            preimage = lightningDetails.preimage;
+            preimage = lightningDetails.htlcDetails?.preimage;
             bolt11 = lightningDetails.invoice;
             if (!string.IsNullOrEmpty(lightningDetails.invoice) &&
                 BOLT11PaymentRequest.TryParse(lightningDetails.invoice, out var pr, _network))
@@ -584,8 +584,8 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
         if (payment?.details is not PaymentDetails.Lightning ln)
             return null;
 
-        if (!string.IsNullOrEmpty(ln.paymentHash))
-            return ln.paymentHash;
+        if (!string.IsNullOrEmpty(ln.htlcDetails?.paymentHash))
+            return ln.htlcDetails.paymentHash;
 
         if (!string.IsNullOrEmpty(ln.invoice) &&
             BOLT11PaymentRequest.TryParse(ln.invoice, out var pr, _network) &&
@@ -666,7 +666,7 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
                 boltAmount = pr.MinimumAmount;
             }
 
-            var rec = LookupInvoice(lightningDetails.invoice, lightningDetails.paymentHash);
+            var rec = LookupInvoice(lightningDetails.invoice, lightningDetails.htlcDetails?.paymentHash);
             recordedAmount = rec?.Amount;
         }
 
@@ -840,7 +840,7 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
         var description = createInvoiceRequest.Description ?? createInvoiceRequest.DescriptionHash?.ToString() ?? "Invoice";
         var amountSats = (ulong)createInvoiceRequest.Amount.ToUnit(LightMoneyUnit.Satoshi);
         var expirySecs = (uint)createInvoiceRequest.Expiry.TotalSeconds;
-        var paymentMethod = new ReceivePaymentMethod.Bolt11Invoice(description, amountSats, expirySecs);
+        var paymentMethod = new ReceivePaymentMethod.Bolt11Invoice(description, amountSats, expirySecs, null);
         var response = await _sdk.ReceivePayment(new ReceivePaymentRequest(paymentMethod));
         var feeSats = (long)response.fee;
         var invoice = FromReceivePaymentResponse(response, createInvoiceRequest.Amount);
@@ -893,7 +893,7 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
                     if (!IsKnownPayment(p))
                         return false;
 
-                    return lightning.paymentHash == identifier ||
+                    return lightning.htlcDetails?.paymentHash == identifier ||
                            lightning.invoice == identifier;
                 }
 
