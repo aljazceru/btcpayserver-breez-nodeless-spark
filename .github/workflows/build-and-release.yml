@@ -21,8 +21,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Fetch all history to ensure we have the latest workflow
+          # Fetch all history and initialize the pinned BTCPayServer submodule
           fetch-depth: 0
+          submodules: true
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -41,8 +42,8 @@ jobs:
           CONFIG="Release"
           PLUGIN_OUTPUT="$PLUGIN_DIR/bin/$CONFIG/net8.0"
 
-          echo "📦 Cloning BTCPayServer PluginPacker..."
-          git clone --depth 1 https://github.com/btcpayserver/btcpayserver.git "$BTCPAY_DIR"
+          echo "📦 Initializing BTCPayServer submodule..."
+          git submodule update --init --recursive --depth 1
 
           echo "🏗️ Restoring and building plugin..."
           dotnet restore "$PLUGIN_DIR/$PLUGIN_NAME.csproj"
