@@ -183,19 +183,19 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
         return FromReceivePaymentResponse(response, createInvoiceRequest.Amount);
     }
 
-    public async Task<ILightningInvoiceListener> Listen(CancellationToken cancellation = default)
+    public Task<ILightningInvoiceListener> Listen(CancellationToken cancellation = default)
     {
-        return new BreezSparkInvoiceListener(this, cancellation);
+        return Task.FromResult<ILightningInvoiceListener>(new BreezSparkInvoiceListener(this, cancellation));
     }
 
-    public async Task<LightningNodeInformation> GetInfo(CancellationToken cancellation = default)
+    public Task<LightningNodeInformation> GetInfo(CancellationToken cancellation = default)
     {
         // Breez Spark is a nodeless wallet (similar to LNDhub/LNbits) that doesn't expose
         // block height information. Throwing NotSupportedException tells BTCPayServer to
         // skip the block sync check, which would otherwise fail because the SDK returns
         // no block height and BTCPayServer would compare 0 against the chain height.
         // This is the same pattern used by LNDhub and LNbits implementations.
-        throw new NotSupportedException("Breez Spark is a nodeless wallet that does not expose node information");
+        return Task.FromException<LightningNodeInformation>(new NotSupportedException("Breez Spark is a nodeless wallet that does not expose node information"));
     }
 
     public async Task<LightningNodeBalance> GetBalance(CancellationToken cancellation = default)
@@ -305,30 +305,30 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
         return await Pay(bolt11, null, cancellation);
     }
 
-    public async Task<OpenChannelResponse> OpenChannel(OpenChannelRequest openChannelRequest,
+    public Task<OpenChannelResponse> OpenChannel(OpenChannelRequest openChannelRequest,
         CancellationToken cancellation = default)
     {
-        throw new NotImplementedException();
+        return Task.FromException<OpenChannelResponse>(new NotImplementedException());
     }
 
-    public async Task<BitcoinAddress> GetDepositAddress(CancellationToken cancellation = default)
+    public Task<BitcoinAddress> GetDepositAddress(CancellationToken cancellation = default)
     {
-        throw new NotImplementedException();
+        return Task.FromException<BitcoinAddress>(new NotImplementedException());
     }
 
-    public async Task<ConnectionResult> ConnectTo(NodeInfo nodeInfo, CancellationToken cancellation = default)
+    public Task<ConnectionResult> ConnectTo(NodeInfo nodeInfo, CancellationToken cancellation = default)
     {
-        throw new NotImplementedException();
+        return Task.FromException<ConnectionResult>(new NotImplementedException());
     }
 
-    public async Task CancelInvoice(string invoiceId, CancellationToken cancellation = default)
+    public Task CancelInvoice(string invoiceId, CancellationToken cancellation = default)
     {
-        throw new NotImplementedException();
+        return Task.FromException(new NotImplementedException());
     }
 
-    public async Task<LightningChannel[]> ListChannels(CancellationToken cancellation = default)
+    public Task<LightningChannel[]> ListChannels(CancellationToken cancellation = default)
     {
-        throw new NotImplementedException();
+        return Task.FromException<LightningChannel[]>(new NotImplementedException());
     }
 
     private LightningInvoice FromReceivePaymentResponse(ReceivePaymentResponse response, LightMoney requestedAmount)

@@ -53,48 +53,48 @@ public class BreezSparkController : Controller
 
 
     [HttpGet("")]
-    public async Task<IActionResult> Index(string storeId)
+    public Task<IActionResult> Index(string storeId)
     {
         var client = _breezService.GetClient(storeId);
-        return RedirectToAction(client is null ? nameof(Configure) : nameof(Info), new {storeId});
+        return Task.FromResult<IActionResult>(RedirectToAction(client is null ? nameof(Configure) : nameof(Info), new {storeId}));
     }
 
     [HttpGet("swapin")]
     [Authorize(Policy = Policies.CanCreateInvoice, AuthenticationSchemes = AuthenticationSchemes.Cookie)]
-    public async Task<IActionResult> SwapIn(string storeId)
+    public Task<IActionResult> SwapIn(string storeId)
     {
         var client = _breezService.GetClient(storeId);
         if (client is null)
         {
-            return RedirectToAction(nameof(Configure), new {storeId});
+            return Task.FromResult<IActionResult>(RedirectToAction(nameof(Configure), new {storeId}));
         }
 
-        return View((object) storeId);
+        return Task.FromResult<IActionResult>(View((object) storeId));
     }
 
     [HttpGet("info")]
     [Authorize(Policy = Policies.CanViewStoreSettings, AuthenticationSchemes = AuthenticationSchemes.Cookie)]
-    public async Task<IActionResult> Info(string storeId)
+    public Task<IActionResult> Info(string storeId)
     {
         var client = _breezService.GetClient(storeId);
         if (client is null)
         {
-            return RedirectToAction(nameof(Configure), new {storeId});
+            return Task.FromResult<IActionResult>(RedirectToAction(nameof(Configure), new {storeId}));
         }
 
-        return View((object) storeId);
+        return Task.FromResult<IActionResult>(View((object) storeId));
     }
     [HttpGet("logs")]
     [Authorize(Policy = Policies.CanViewStoreSettings, AuthenticationSchemes = AuthenticationSchemes.Cookie)]
-    public async Task<IActionResult> Logs(string storeId)
+    public Task<IActionResult> Logs(string storeId)
     {
         var client = _breezService.GetClient(storeId);
         if (client is null)
         {
-            return RedirectToAction(nameof(Configure), new {storeId});
+            return Task.FromResult<IActionResult>(RedirectToAction(nameof(Configure), new {storeId}));
         }
 
-        return View( client.Events);
+        return Task.FromResult<IActionResult>(View(client.Events));
     }
 
     [HttpPost("sweep")]
@@ -132,28 +132,28 @@ public class BreezSparkController : Controller
 
     [HttpGet("send")]
     [Authorize(Policy = Policies.CanModifyStoreSettings, AuthenticationSchemes = AuthenticationSchemes.Cookie)]
-    public async Task<IActionResult> Send(string storeId)
+    public Task<IActionResult> Send(string storeId)
     {
         var client = _breezService.GetClient(storeId);
         if (client is null)
         {
-            return RedirectToAction(nameof(Configure), new {storeId});
+            return Task.FromResult<IActionResult>(RedirectToAction(nameof(Configure), new {storeId}));
         }
 
-        return View((object) storeId);
+        return Task.FromResult<IActionResult>(View((object) storeId));
     }   
     [Authorize(Policy = Policies.CanCreateInvoice, AuthenticationSchemes = AuthenticationSchemes.Cookie)]
     [HttpGet("receive")]
     [Authorize(Policy = Policies.CanCreateInvoice, AuthenticationSchemes = AuthenticationSchemes.Cookie)]
-    public async Task<IActionResult> Receive(string storeId)
+    public Task<IActionResult> Receive(string storeId)
     {
         var client = _breezService.GetClient(storeId);
         if (client is null)
         {
-            return RedirectToAction(nameof(Configure), new {storeId});
+            return Task.FromResult<IActionResult>(RedirectToAction(nameof(Configure), new {storeId}));
         }
 
-        return View((object) storeId);
+        return Task.FromResult<IActionResult>(View((object) storeId));
     }
 
     [HttpPost("receive")]
@@ -313,15 +313,15 @@ public class BreezSparkController : Controller
 
     [HttpGet("swapout")]
     [Authorize(Policy = Policies.CanModifyStoreSettings, AuthenticationSchemes = AuthenticationSchemes.Cookie)]
-    public async Task<IActionResult> SwapOut(string storeId)
+    public Task<IActionResult> SwapOut(string storeId)
     {
         var client = _breezService.GetClient(storeId);
         if (client is null)
         {
-            return RedirectToAction(nameof(Configure), new {storeId});
+            return Task.FromResult<IActionResult>(RedirectToAction(nameof(Configure), new {storeId}));
         }
 
-        return View((object) storeId);
+        return Task.FromResult<IActionResult>(View((object) storeId));
     }
 
     [HttpPost("swapout")]
@@ -375,15 +375,15 @@ public class BreezSparkController : Controller
 
     [HttpGet("swapin/{address}/refund")]
     [Authorize(Policy = Policies.CanModifyStoreSettings, AuthenticationSchemes = AuthenticationSchemes.Cookie)]
-    public async Task<IActionResult> SwapInRefund(string storeId, string address)
+    public Task<IActionResult> SwapInRefund(string storeId, string address)
     {
         var client = _breezService.GetClient(storeId);
         if (client is null)
         {
-            return RedirectToAction(nameof(Configure), new {storeId});
+            return Task.FromResult<IActionResult>(RedirectToAction(nameof(Configure), new {storeId}));
         }
 
-        return View((object) storeId);
+        return Task.FromResult<IActionResult>(View((object) storeId));
     }
 
     [HttpPost("swapin/{address}/refund")]
@@ -422,7 +422,7 @@ public class BreezSparkController : Controller
     [HttpGet("configure")]
     public async Task<IActionResult> Configure(string storeId)
     {
-        return View(await _breezService.Get(storeId));
+        return View(await _breezService.Get(storeId) ?? new BreezSparkSettings());
     }
     [HttpPost("configure")]
     [Authorize(Policy = Policies.CanModifyStoreSettings, AuthenticationSchemes = AuthenticationSchemes.Cookie)]
@@ -712,22 +712,22 @@ public class BreezSparkController : Controller
 
     [HttpPost("treasury/preview-addresses")]
     [Authorize(Policy = Policies.CanModifyStoreSettings, AuthenticationSchemes = AuthenticationSchemes.Cookie)]
-    public async Task<IActionResult> TreasuryPreviewAddresses(string storeId, string? xpub, uint? startIndex, int? count)
+    public Task<IActionResult> TreasuryPreviewAddresses(string storeId, string? xpub, uint? startIndex, int? count)
     {
         var client = _breezService.GetClient(storeId);
         if (client is null)
         {
-            return Json(new { success = false, error = "Breez client not configured" });
+            return Task.FromResult<IActionResult>(Json(new { success = false, error = "Breez client not configured" }));
         }
 
         if (string.IsNullOrWhiteSpace(xpub))
         {
-            return Json(new { success = false, error = "Extended public key is required" });
+            return Task.FromResult<IActionResult>(Json(new { success = false, error = "Extended public key is required" }));
         }
 
         if (!TreasuryHelper.ValidateXpub(xpub, NBitcoin.Network.Main))
         {
-            return Json(new { success = false, error = "Invalid extended public key" });
+            return Task.FromResult<IActionResult>(Json(new { success = false, error = "Invalid extended public key" }));
         }
 
         try
@@ -742,7 +742,7 @@ public class BreezSparkController : Controller
                 NBitcoin.Network.Main,
                 "0/{index}"); // Hardcoded standard receiving path
 
-            return Json(new
+            return Task.FromResult<IActionResult>(Json(new
             {
                 success = true,
                 addresses = addresses.Select(a => new
@@ -751,12 +751,12 @@ public class BreezSparkController : Controller
                     address = a.Address,
                     path = $"0/{a.Index}"
                 })
-            });
+            }));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error generating preview addresses for store {StoreId}", storeId);
-            return Json(new { success = false, error = FriendlyError("Generating addresses", ex) });
+            return Task.FromResult<IActionResult>(Json(new { success = false, error = FriendlyError("Generating addresses", ex) }));
         }
     }
 
@@ -800,7 +800,7 @@ public class BreezSparkController : Controller
             if (p.details is PaymentDetails.Lightning l && !string.IsNullOrEmpty(l.invoice))
             {
                 var nbitcoinNetwork = _btcPayNetworkProvider.GetNetwork<BTCPayNetwork>("BTC")?.NBitcoinNetwork ?? NBitcoin.Network.Main;
-                if (BOLT11PaymentRequest.TryParse(l.invoice, out var pr, nbitcoinNetwork))
+                if (BOLT11PaymentRequest.TryParse(l.invoice, out var pr, nbitcoinNetwork) && pr is not null)
                 {
                     if (pr.MinimumAmount is not null)
                     {

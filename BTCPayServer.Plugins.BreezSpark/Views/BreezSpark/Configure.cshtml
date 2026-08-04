@@ -1,7 +1,7 @@
 ﻿@using BTCPayServer
 @using BTCPayServer.Abstractions.Extensions
 @using BTCPayServer.Plugins.BreezSpark
-@model BTCPayServer.Plugins.BreezSpark.BreezSparkSettings?
+@model BTCPayServer.Plugins.BreezSpark.BreezSparkSettings
 @inject BreezSparkService BreezService
 @{
     ViewData.SetActivePage("BreezSpark", "Configure", "Configure");
@@ -27,7 +27,7 @@
             <div class="form-group">
                 <label asp-for="Mnemonic" class="form-label">Mnemonic</label>
                 <div class="input-group">
-                    <input value="@Model?.Mnemonic" asp-for="Mnemonic" class="form-control" type="password"
+                    <input value="@Model.Mnemonic" asp-for="Mnemonic" class="form-control" type="password"
                            placeholder="word1 word2 word3 ... word12" disabled="@active" id="mnemonic-input"/>
                     <button class="btn btn-outline-secondary" type="button" id="mnemonic-toggle"
                             title="Show/hide mnemonic" @(active ? "disabled" : "")>
