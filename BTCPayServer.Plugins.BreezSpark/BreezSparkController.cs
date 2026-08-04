@@ -115,7 +115,7 @@ public class BreezSparkController : Controller
 
             if (response.deposits.Any())
             {
-                TempData[WellKnownTempData.SuccessMessage] = $"Found {response.deposits.Count} unclaimed deposits";
+                TempData[WellKnownTempData.SuccessMessage] = $"Found {response.deposits.Length} unclaimed deposits";
             }
             else
             {
@@ -213,7 +213,7 @@ public class BreezSparkController : Controller
             var amountSats = ResolveAmountSats(address, amount);
 
             var prepareRequest = new PrepareSendPaymentRequest(
-                paymentRequest: address,
+                paymentRequest: new Breez.Sdk.Spark.PaymentRequest.Input(input: address),
                 amount: amountSats
             );
 
@@ -271,7 +271,7 @@ public class BreezSparkController : Controller
             // Re-run preparation to avoid polymorphic JSON deserialization issues
             var amountSats = ResolveAmountSats(paymentRequest, amount);
             var prepareResponse = await client.Sdk.PrepareSendPayment(new PrepareSendPaymentRequest(
-                paymentRequest: paymentRequest,
+                paymentRequest: new Breez.Sdk.Spark.PaymentRequest.Input(input: paymentRequest),
                 amount: amountSats
             ));
 
@@ -339,7 +339,7 @@ public class BreezSparkController : Controller
         {
             // Use current SDK pattern for onchain payments
             var prepareRequest = new PrepareSendPaymentRequest(
-                paymentRequest: address,
+                paymentRequest: new Breez.Sdk.Spark.PaymentRequest.Input(input: address),
                 amount: new BigInteger(amount)
             );
 
@@ -776,6 +776,7 @@ public class BreezSparkController : Controller
             typeFilter: null,
             statusFilter: null,
             assetFilter: new AssetFilter.Bitcoin(),
+            paymentDetailsFilter: null,
             fromTimestamp: null,
             toTimestamp: null,
             offset: viewModel.Skip > 0 ? (uint?)viewModel.Skip : null,

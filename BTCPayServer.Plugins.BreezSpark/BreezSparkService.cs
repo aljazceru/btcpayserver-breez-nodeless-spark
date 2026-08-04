@@ -589,7 +589,7 @@ public class BreezSparkService:EventHostedServiceBase
                 try
                 {
                     var fullPrepareRequest = new PrepareSendPaymentRequest(
-                        paymentRequest: destination,
+                        paymentRequest: new Breez.Sdk.Spark.PaymentRequest.Input(input: destination),
                         amount: new BigInteger(maxSweepAmount));
                     var fullPrepareResponse = await client.Sdk.PrepareSendPayment(fullPrepareRequest);
 
@@ -629,7 +629,7 @@ public class BreezSparkService:EventHostedServiceBase
                 {
                     var testAmount = Math.Min(maxSweepAmount, 5000);
                     var prepareRequest = new PrepareSendPaymentRequest(
-                        paymentRequest: destination,
+                        paymentRequest: new Breez.Sdk.Spark.PaymentRequest.Input(input: destination),
                         amount: new BigInteger(testAmount));
 
                     var prepareResponse = await client.Sdk.PrepareSendPayment(prepareRequest);
@@ -701,7 +701,7 @@ public class BreezSparkService:EventHostedServiceBase
                     return (long)(maxSweepAmount * 0.95);
                 }
 
-                var prepareRequest = new PrepareSendPaymentRequest(paymentRequest: bolt11);
+                var prepareRequest = new PrepareSendPaymentRequest(paymentRequest: new Breez.Sdk.Spark.PaymentRequest.Input(input: bolt11));
                 var prepareResponse = await client.Sdk.PrepareSendPayment(prepareRequest);
 
                 if (prepareResponse.paymentMethod is SendPaymentMethod.Bolt11Invoice bolt11Method)
@@ -880,7 +880,7 @@ public class BreezSparkService:EventHostedServiceBase
 
                 // Prepare on-chain payment
                 var prepareRequest = new PrepareSendPaymentRequest(
-                    paymentRequest: destination,
+                    paymentRequest: new Breez.Sdk.Spark.PaymentRequest.Input(input: destination),
                     amount: new BigInteger(amountSats));
 
                 var prepareResponse = await client.Sdk.PrepareSendPayment(prepareRequest);
@@ -934,7 +934,7 @@ public class BreezSparkService:EventHostedServiceBase
                 }
 
                 // Prepare lightning payment
-                var prepareRequest = new PrepareSendPaymentRequest(paymentRequest: bolt11);
+                var prepareRequest = new PrepareSendPaymentRequest(paymentRequest: new Breez.Sdk.Spark.PaymentRequest.Input(input: bolt11));
                 var prepareResponse = await client.Sdk.PrepareSendPayment(prepareRequest);
 
                 if (prepareResponse.paymentMethod is SendPaymentMethod.Bolt11Invoice bolt11Method)

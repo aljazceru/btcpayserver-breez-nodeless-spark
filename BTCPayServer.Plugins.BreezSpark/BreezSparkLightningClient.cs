@@ -114,9 +114,10 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
         CancellationToken cancellation = default)
     {
         var req = new ListPaymentsRequest(
-            typeFilter: new List<PaymentType> { PaymentType.Receive },
-            statusFilter: request?.PendingOnly == true ? new List<PaymentStatus> { PaymentStatus.Pending } : null,
+            typeFilter: new PaymentType[] { PaymentType.Receive },
+            statusFilter: request?.PendingOnly == true ? new PaymentStatus[] { PaymentStatus.Pending } : null,
             assetFilter: new AssetFilter.Bitcoin(),
+            paymentDetailsFilter: null,
             fromTimestamp: null,
             toTimestamp: null,
             offset: request?.OffsetIndex != null ? (uint?)request.OffsetIndex : null,
@@ -143,9 +144,10 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
         CancellationToken cancellation = default)
     {
         var req = new ListPaymentsRequest(
-            typeFilter: new List<PaymentType> { PaymentType.Send },
+            typeFilter: new PaymentType[] { PaymentType.Send },
             statusFilter: null,
             assetFilter: new AssetFilter.Bitcoin(),
+            paymentDetailsFilter: null,
             fromTimestamp: null,
             toTimestamp: null,
             offset: request?.OffsetIndex != null ? (uint?)request.OffsetIndex : null,
@@ -246,7 +248,7 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
             }
 
             var prepareRequest = new PrepareSendPaymentRequest(
-                paymentRequest: bolt11,
+                paymentRequest: new Breez.Sdk.Spark.PaymentRequest.Input(input: bolt11),
                 amount: amountSats
             );
             var prepareResponse = await _sdk.PrepareSendPayment(prepareRequest);
@@ -792,7 +794,15 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
                 {
                     // Get all payments and check for new paid ones
                     var payments = await _sdk.ListPayments(new ListPaymentsRequest(
-                        typeFilter: new List<PaymentType> { PaymentType.Receive }
+                        typeFilter: new PaymentType[] { PaymentType.Receive },
+                        statusFilter: null,
+                        assetFilter: null,
+                        paymentDetailsFilter: null,
+                        fromTimestamp: null,
+                        toTimestamp: null,
+                        offset: null,
+                        limit: null,
+                        sortAscending: null
                     ));
 
                     foreach (var payment in payments.payments)
@@ -881,8 +891,15 @@ public class BreezSparkLightningClient : ILightningClient, IDisposable
         try
         {
             var list = await _sdk.ListPayments(new ListPaymentsRequest(
-                typeFilter: new List<PaymentType> { PaymentType.Receive },
-                assetFilter: new AssetFilter.Bitcoin()
+                typeFilter: new PaymentType[] { PaymentType.Receive },
+                statusFilter: null,
+                assetFilter: new AssetFilter.Bitcoin(),
+                paymentDetailsFilter: null,
+                fromTimestamp: null,
+                toTimestamp: null,
+                offset: null,
+                limit: null,
+                sortAscending: null
             ));
             DebugLogObject("FindPayment:ListPayments", list);
 
