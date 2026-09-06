@@ -5,3 +5,5 @@ Plugins/packed
 .vs/
 /BTCPayServerPlugins.sln.DotSettings.user
 documentation/
+
+.planning/debug/
